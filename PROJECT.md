@@ -367,6 +367,30 @@ Agent 回复"已转接人工客服，请稍候，会尽快为您处理"
 - [ ] 对话记录入库（Agent 消息）
 - [ ] 边界情况处理（意图不明确、API 调用失败等）
 
+### Phase 4.5：RAG 知识库
+
+#### 步骤 4.5.1：数据爬取（京东帮助中心）
+- [ ] 分析京东帮助中心页面结构（help.jd.com）
+- [ ] 编写爬虫脚本 `scripts/crawl_jd_faq.py`
+  - 目标分类：售后政策、物流配送、支付发票、账户管理
+  - 每类约 50 条，总计约 200 条 FAQ
+  - 处理 GBK 编码
+- [ ] 编写清洗脚本 `scripts/clean_faq.py`
+  - HTML → 纯文本
+  - LLM 辅助提取 Q&A 对
+  - 输出为 `knowledge/` 目录下的 Markdown 文件
+
+#### 步骤 4.5.2：知识库搭建
+- [ ] 向量数据库搭建（Chroma，本地轻量）
+- [ ] 文档切片策略测试（固定长度 vs 语义分块）
+- [ ] Embedding（OpenAI embedding 或本地模型）
+- [ ] 召回精度测试（评估不同切片策略的效果）
+
+#### 步骤 4.5.3：Agent 集成
+- [ ] Agent Tool: search_knowledge_base（向量检索）
+- [ ] Prompt 模板：检索结果 + 用户问题 → LLM 生成回答
+- [ ] 边界测试：知识库没有的问题（不应强行编造）
+
 ### Phase 5：测试 + 优化
 - [ ] 单元测试（关键业务逻辑）
 - [ ] 手动测试完整对话链路
@@ -402,7 +426,7 @@ Agent 回复"已转接人工客服，请稍候，会尽快为您处理"
 - 管理员后台（知识库、对话管理）
 - 前端框架选型（React / Vue）
 - 部署方案
-- 知识库（FAQ）管理
+- RAG 知识库（Phase 4.5）
 - 对话数据分析和统计
 - 多模型切换
 - 语音/多模态
@@ -411,24 +435,35 @@ Agent 回复"已转接人工客服，请稍候，会尽快为您处理"
 
 ## 十、附录
 
-### 10.1 依赖清单（初版）
+### 10.1 依赖清单
 
 ```
+# 核心
 fastapi
 uvicorn[standard]
 sqlalchemy>=2.0
 pymysql
 alembic
-python-dotenv
-python-jose[cryptography]  # JWT
-passlib[bcrypt]             # 密码哈希
 pydantic
-httpx                       # Agent 调用外部 API 使用
+pydantic-settings
+python-dotenv
+
+# 认证
+python-jose[cryptography]
+passlib[bcrypt]
+
+# Agent
 langchain
 langgraph
-openai                      # 或其他 LLM SDK
+openai
+httpx
+
+# RAG（Phase 4.5）
+chromadb
+langchain-text-splitters
+
+# 测试
 pytest
-httpx                       # 测试用
 ```
 
 ---
