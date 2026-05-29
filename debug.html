@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电商客服系统 - API 调试面板</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, sans-serif; background: #f5f5f5; padding: 20px; }
+        h2 { margin-bottom: 12px; font-size: 16px; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        input, select, button { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
+        input { flex: 1; min-width: 120px; }
+        button { cursor: pointer; background: #4f46e5; color: #fff; border: none; white-space: nowrap; }
+        button:hover { background: #4338ca; }
+        button.danger { background: #dc2626; }
+        button.danger:hover { background: #b91c1c; }
+        button.secondary { background: #6b7280; }
+        button.secondary:hover { background: #4b5563; }
+        pre { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 4px; font-size: 12px; overflow-x: auto; max-height: 300px; overflow-y: auto; line-height: 1.5; }
+        .token-display { background: #fef3c7; padding: 8px 12px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; word-break: break-all; color: #92400e; }
+        .status-ok { color: #16a34a; }
+        .status-err { color: #dc2626; }
+        hr { border: none; border-top: 1px solid #eee; margin: 12px 0; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- 登录信息 -->
+    <div class="card">
+        <h2>当前登录状态</h2>
+        <div id="login-status" style="color: #999;">未登录</div>
+        <div id="token-display" class="token-display" style="display:none;"></div>
+    </div>
+
+    <!-- 认证 -->
+    <div class="card">
+        <h2>注册 / 登录</h2>
+        <div class="row">
+            <input id="auth-username" placeholder="用户名">
+            <input id="auth-password" type="password" placeholder="密码">
+            <input id="auth-phone" placeholder="手机号（注册用）">
+        </div>
+        <div class="row">
+            <button onclick="doRegister()">注册</button>
+            <button onclick="doLogin()">登录</button>
+            <button class="secondary" onclick="doLogout()">退出</button>
+        </div>
+    </div>
+
+    <!-- 用户信息 -->
+    <div class="card">
+        <h2>用户信息</h2>
+        <div class="row">
+            <button onclick="getMyInfo()">GET /api/users/me</button>
+        </div>
+        <pre id="user-result">点击按钮查看</pre>
+    </div>
+
+    <!-- 订单 -->
+    <div class="card">
+        <h2>订单查询</h2>
+        <div class="row">
+            <button onclick="getOrders()">GET /api/orders</button>
+            <input id="order-id" placeholder="订单 ID" style="width: 100px;">
+            <button onclick="getOrderDetail()">GET /api/orders/{id}</button>
+            <button onclick="getLogistics()">GET /api/orders/{id}/logistics</button>
+        </div>
+        <pre id="order-result">点击按钮查看</pre>
+    </div>
+
+    <!-- 售后 -->
+    <div class="card">
+        <h2>售后</h2>
+        <div class="row">
+            <button onclick="getAfterSales()">GET /api/after-sales</button>
+            <input id="as-order-id" placeholder="订单 ID" style="width: 100px;">
+            <input id="as-type" placeholder="类型 (return/refund/exchange)" style="width: 200px;">
+            <input id="as-reason" placeholder="售后原因" style="width: 200px;">
+            <button onclick="createAfterSale()">POST /api/after-sales</button>
+        </div>
+        <pre id="as-result">点击按钮查看</pre>
+    </div>
+
+    <!-- 对话 -->
+    <div class="card">
+        <h2>客服对话</h2>
+        <div class="row">
+            <button onclick="createSession()">POST /api/chat/session</button>
+            <input id="conv-id" placeholder="会话 ID" style="width: 100px;">
+        </div>
+        <div class="row">
+            <input id="chat-msg" placeholder="输入消息..." style="flex: 3;">
+            <button onclick="sendMessage()">POST /api/chat/message</button>
+        </div>
+        <hr>
+        <div class="row">
+            <button onclick="getHistory()">GET /api/chat/history/{session_id}</button>
+        </div>
+        <pre id="chat-result">点击按钮查看</pre>
+    </div>
+
+</div>
+
+<script>
+const BASE = 'http://localhost:8000';
+let token = '';
+
+// --- 工具函数 ---
+function headers() {
+    const h = { 'Content-Type': 'application/json' };
+    if (token) h['Authorization'] = 'Bearer ' + token;
+    return h;
+}
+
+function updateLoginUI(user) {
+    const el = document.getElementById('login-status');
+    if (user) {
+        el.innerHTML = '<span class="status-ok">已登录: ' + user.username + ' (ID: ' + user.id + ')</span>';
+    }
+}
+
+function showToken(t) {
+    token = t;
+    const el = document.getElementById('token-display');
+    el.style.display = t ? 'block' : 'none';
+    el.textContent = t ? 'Token: ' + t.substring(0, 40) + '...' : '';
+}
+
+// --- 认证 ---
+async function doRegister() {
+    const username = document.getElementById('auth-username').value;
+    const password = document.getElementById('auth-password').value;
+    const phone = document.getElementById('auth-phone').value;
+    const res = await fetch(BASE + '/api/auth/register', {
+        method: 'POST', headers: headers(),
+        body: JSON.stringify({ username, password, phone: phone || null })
+    });
+    const data = await res.json();
+    document.getElementById('order-result').textContent = JSON.stringify(data, null, 2);
+    if (res.ok) {
+        alert('注册成功！用户名: ' + data.username);
+    }
+}
+
+async function doLogin() {
+    const username = document.getElementById('auth-username').value;
+    const password = document.getElementById('auth-password').value;
+    const res = await fetch(BASE + '/api/auth/login', {
+        method: 'POST', headers: headers(),
+        body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (data.access_token) {
+        showToken(data.access_token);
+        await getMyInfo();
+    }
+    document.getElementById('order-result').textContent = JSON.stringify(data, null, 2);
+}
+
+function doLogout() {
+    token = '';
+    showToken('');
+    document.getElementById('login-status').textContent = '未登录';
+    document.getElementById('login-status').className = '';
+}
+
+// --- 用户信息 ---
+async function getMyInfo() {
+    const res = await fetch(BASE + '/api/users/me', { headers: headers() });
+    const data = await res.json();
+    document.getElementById('user-result').textContent = JSON.stringify(data, null, 2);
+    if (res.ok) updateLoginUI(data);
+}
+
+// --- 订单 ---
+async function getOrders() {
+    const res = await fetch(BASE + '/api/orders', { headers: headers() });
+    document.getElementById('order-result').textContent = JSON.stringify(await res.json(), null, 2);
+}
+
+async function getOrderDetail() {
+    const id = document.getElementById('order-id').value;
+    const res = await fetch(BASE + '/api/orders/' + id, { headers: headers() });
+    document.getElementById('order-result').textContent = JSON.stringify(await res.json(), null, 2);
+}
+
+async function getLogistics() {
+    const id = document.getElementById('order-id').value;
+    const res = await fetch(BASE + '/api/orders/' + id + '/logistics', { headers: headers() });
+    document.getElementById('order-result').textContent = JSON.stringify(await res.json(), null, 2);
+}
+
+// --- 售后 ---
+async function getAfterSales() {
+    const res = await fetch(BASE + '/api/after-sales', { headers: headers() });
+    document.getElementById('as-result').textContent = JSON.stringify(await res.json(), null, 2);
+}
+
+async function createAfterSale() {
+    const body = {
+        order_id: parseInt(document.getElementById('as-order-id').value),
+        type: document.getElementById('as-type').value,
+        reason: document.getElementById('as-reason').value
+    };
+    const res = await fetch(BASE + '/api/after-sales', {
+        method: 'POST', headers: headers(),
+        body: JSON.stringify(body)
+    });
+    document.getElementById('as-result').textContent = JSON.stringify(await res.json(), null, 2);
+}
+
+// --- 对话 ---
+async function createSession() {
+    const res = await fetch(BASE + '/api/chat/session', {
+        method: 'POST', headers: headers()
+    });
+    document.getElementById('chat-result').textContent = JSON.stringify(await res.json(), null, 2);
+}
+
+async function sendMessage() {
+    const body = {
+        conversation_id: parseInt(document.getElementById('conv-id').value) || null,
+        content: document.getElementById('chat-msg').value
+    };
+    const res = await fetch(BASE + '/api/chat/message', {
+        method: 'POST', headers: headers(),
+        body: JSON.stringify(body)
+    });
+    document.getElementById('chat-result').textContent = JSON.stringify(await res.json(), null, 2);
+}
+
+async function getHistory() {
+    const id = document.getElementById('conv-id').value;
+    const res = await fetch(BASE + '/api/chat/history/' + id, { headers: headers() });
+    document.getElementById('chat-result').textContent = JSON.stringify(await res.json(), null, 2);
+}
+</script>
+</body>
+</html>
