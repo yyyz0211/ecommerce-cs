@@ -1,6 +1,7 @@
-# 电商智能客服系统 -- 项目文档 v0.1
+# 电商智能客服系统 -- 项目文档 v0.2
 
 > 个人学习项目，以实践驱动掌握 Python Web 开发 + AI Agent 开发
+> 仓库：https://github.com/yyyz0211/ecommerce-cs
 
 ---
 
@@ -65,47 +66,50 @@ Agent + API 打通（agent 调用后端接口）
               [LLM API (OpenAI 等)]
 ```
 
-### 2.2 目录结构（初期规划）
+### 2.2 目录结构（当前）
 
 ```
 ecommerce-cs/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI 入口
-│   ├── config.py             # 配置（数据库、API Key 等）
-│   ├── database.py           # 数据库连接
-│   ├── models/               # SQLAlchemy 模型
+│   ├── config.py             # 配置（数据库、JWT、LLM）
+│   ├── database.py           # 数据库连接 + 会话管理
+│   ├── models/               # SQLAlchemy 模型（8 个类 → 8 张表）
 │   │   ├── __init__.py
-│   │   ├── user.py           # 用户模型
-│   │   ├── order.py          # 订单模型
-│   │   └── conversation.py   # 对话记录模型
+│   │   ├── user.py
+│   │   ├── order.py          # Order + OrderItem + Logistics
+│   │   ├── after_sale.py
+│   │   └── conversation.py   # Conversation + Message + TransferLog
 │   ├── schemas/              # Pydantic 请求/响应模型
 │   │   ├── __init__.py
 │   │   ├── user.py
 │   │   ├── order.py
+│   │   ├── after_sale.py
 │   │   └── chat.py
-│   ├── routers/              # API 路由
+│   ├── routers/              # API 路由（13 个端点）
 │   │   ├── __init__.py
-│   │   ├── auth.py           # 认证
-│   │   ├── users.py          # 用户信息
-│   │   ├── orders.py         # 订单查询
-│   │   ├── after_sale.py     # 售后处理
-│   │   └── chat.py           # 对话入口
+│   │   ├── auth.py           # 注册/登录/刷新
+│   │   ├── users.py          # 个人信息 CRUD
+│   │   ├── orders.py         # 订单 CRUD + 分页 + 取消
+│   │   ├── after_sale.py     # 售后 CRUD
+│   │   └── chat.py           # 会话管理（Phase 3 接 Agent）
 │   ├── services/             # 业务逻辑层
 │   │   ├── __init__.py
-│   │   ├── order_service.py
+│   │   ├── auth_service.py   # JWT 签发 + 鉴权注入
+│   │   ├── user_service.py   # 注册/登录/修改
+│   │   ├── order_service.py  # 订单查询/创建/取消 + 分页 + 状态校验
 │   │   ├── after_sale_service.py
-│   │   └── agent_service.py  # Agent 对话逻辑
-│   └── agent/                # Agent 层
-│       ├── __init__.py
-│       ├── llm.py            # LLM 客户端配置
-│       ├── tools.py          # 自定义工具（查订单、提交售后等）
-│       └── graph.py          # LangGraph 对话图定义
-├── alembic/                  # 数据库迁移
-├── tests/                    # 测试
+│   │   └── chat_service.py   # 会话 + 消息管理
+│   └── agent/                # Agent 层（Phase 3）
+│       └── __init__.py
+├── tests/
+├── debug.html                # 前端调试面板
+├── seed_data.py              # 种子数据脚本
 ├── requirements.txt
-├── .env                       # 环境变量（不提交）
-└── PROJECT.md                # 本文档
+├── .env.example
+├── .gitignore
+└── PROJECT.md
 ```
 
 ---
@@ -155,8 +159,10 @@ ecommerce-cs/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | /api/orders | 获取我的订单列表 |
-| GET | /api/orders/{id} | 获取订单详情 |
+| GET | /api/orders?page=1&size=10 | 获取我的订单列表（分页） |
+| POST | /api/orders | 创建订单（调试用） |
+| GET | /api/orders/{id} | 获取订单详情（含商品明细） |
+| PATCH | /api/orders/{id}/cancel | 取消订单（pending/paid 可取消） |
 | GET | /api/orders/{id}/logistics | 获取物流信息 |
 
 ### 4.4 售后
@@ -167,12 +173,12 @@ ecommerce-cs/
 | GET | /api/after-sales | 查看我的售后列表 |
 | GET | /api/after-sales/{id} | 查看售后详情与进度 |
 
-### 4.5 对话（核心）
+### 4.5 对话
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | /api/chat/session | 创建新对话会话 |
-| POST | /api/chat/message | 发送消息，Agent 回复 |
+| POST | /api/chat/message | 发送消息，Agent 回复（Phase 3） |
 | GET | /api/chat/history/{session_id} | 获取某次对话记录 |
 
 `POST /api/chat/message` 是核心接口，大致流程：
@@ -325,20 +331,28 @@ Agent 回复"已转接人工客服，请稍候，会尽快为您处理"
 
 ## 七、开发阶段规划
 
-### Phase 1：项目骨架
-- [ ] 初始化 FastAPI 项目
-- [ ] 配置 MySQL 连接 + SQLAlchemy
-- [ ] 配置 Alembic 迁移
-- [ ] 实现用户注册/登录（JWT）
-- [ ] 验证接口可用
+### Phase 1：项目骨架 [已完成]
+- [x] 初始化 FastAPI 项目
+- [x] 配置 MySQL 连接 + SQLAlchemy
+- [x] 实现用户注册/登录（JWT）
+- [x] 验证接口可用
 
-### Phase 2：业务 API
-- [ ] 订单表 + API（查询列表、详情）
-- [ ] 物流表 + API
-- [ ] 售后表 + API（提交申请、查询进度）
-- [ ] 编写测试数据（种子数据）
+### Phase 2：业务 API [已完成]
+- [x] 订单表 + API（查询列表、详情）
+- [x] 物流表 + API
+- [x] 售后表 + API（提交申请、查询进度）
+- [x] 编写测试数据（种子数据）
 
-### Phase 3：Agent 对话
+### Phase 2.5：补全接口 + 优化 [已完成]
+- [x] POST /api/auth/refresh（刷新 Token）
+- [x] PATCH /api/users/me（修改个人信息）
+- [x] POST /api/orders（创建测试订单）
+- [x] PATCH /api/orders/{id}/cancel（取消订单 + 状态校验）
+- [x] 订单列表分页（?page=&size=）
+- [x] 对话会话基础设施（POST session / GET history）
+- [x] 前端调试面板（debug.html）
+
+### Phase 3：Agent 对话 ← 当前
 - [ ] 接入 LLM API（配置 Key，测试调用）
 - [ ] LangChain 基础对话链路
 - [ ] 自定义 Tool：查订单
@@ -348,17 +362,16 @@ Agent 回复"已转接人工客服，请稍候，会尽快为您处理"
 - [ ] 意图识别 + 工具调用
 
 ### Phase 4：对话 API + 完善
-- [ ] 对话会话管理（创建/查询历史）
-- [ ] Agent 回复流接入 POST /api/chat/message
 - [ ] 转人工占位机制
-- [ ] 对话记录入库
+- [ ] Agent 回复流接入 POST /api/chat/message
+- [ ] 对话记录入库（Agent 消息）
 - [ ] 边界情况处理（意图不明确、API 调用失败等）
 
 ### Phase 5：测试 + 优化
 - [ ] 单元测试（关键业务逻辑）
 - [ ] 手动测试完整对话链路
 - [ ] 补全文档和注释
-- [ ] （可选）简单前端页面联调
+- [ ] 前端框架（Vue/React）替换 debug.html
 
 ---
 
@@ -420,6 +433,6 @@ httpx                       # 测试用
 
 ---
 
-> 文档版本：v0.1
-> 最后更新：2026-05-28
-> 下一步：确认文档内容无误后，进入 Phase 1 开发
+> 文档版本：v0.2
+> 最后更新：2026-05-29
+> 下一步：Phase 3 Agent 对话
