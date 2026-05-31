@@ -1,54 +1,58 @@
-"""对话服务：会话管理、消息记录
+"""对话服务：会话管理、消息记录"""
 
-Phase 3 Agent 接入后，send_message 会调用 Agent 生成回复。
-目前先做好会话创建和历史查询的基础设施。
-"""
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
-
+from app.errors import CONVERSATION_NOT_FOUND
 from app.models.conversation import Conversation, Message
 from app.models.user import User
 
 
-def create_conversation(db: Session, user: User) -> Conversation:
+async def create_conversation(db: AsyncSession, user: User) -> Conversation:
     """为用户创建一个新的客服对话会话"""
     conversation = Conversation(user_id=user.id)
     db.add(conversation)
-    db.commit()
-    db.refresh(conversation)
+    await db.commit()
+    await db.refresh(conversation)
     return conversation
 
 
-def add_message(db: Session, conversation: Conversation, role: str, content: str) -> Message:
-    """往会话中添加一条消息（user 或 agent），同时刷新会话的 updated_at"""
+async def add_message(
+    db: AsyncSession, conversation: Conversation, role: str, content: str
+) -> Message:
+    """往会话中添加一条消息，同时刷新会话的 updated_at"""
     message = Message(conversation_id=conversation.id, role=role, content=content)
     db.add(message)
-    # 手动触碰会话使其 updated_at 刷新 -- onupdate 只在 ORM 对象上生效
-    conversation.status = conversation.status  # 无实际变更，但触发 onupdate
-    db.commit()
-    db.refresh(message)
+    conversation.status = conversation.status
+    await db.commit()
+    await db.refresh(message)
     return message
 
 
-def get_conversation(db: Session, conversation_id: int, user_id: int) -> Conversation:
+async def get_conversation(
+    db: AsyncSession, conversation_id: int, user_id: int
+) -> Conversation:
     """获取会话，校验归属"""
-    conversation = db.query(Conversation).filter(
-        Conversation.id == conversation_id,
-        Conversation.user_id == user_id,
-    ).first()
+    result = await db.execute(
+        select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id,
+        )
+    )
+    conversation = result.scalar_one_or_none()
     if not conversation:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="会话不存在")
+        raise CONVERSATION_NOT_FOUND
     return conversation
 
 
-def get_conversation_messages(db: Session, conversation_id: int, user_id: int) -> list[Message]:
+async def get_conversation_messages(
+    db: AsyncSession, conversation_id: int, user_id: int
+) -> list[Message]:
     """获取会话的所有消息记录（按时间正序），先校验会话归属"""
-    # 先确认会话属于当前用户
-    get_conversation(db, conversation_id, user_id)
-    return (
-        db.query(Message)
-        .filter(Message.conversation_id == conversation_id)
+    await get_conversation(db, conversation_id, user_id)
+    result = await db.execute(
+        select(Message)
+        .where(Message.conversation_id == conversation_id)
         .order_by(Message.created_at.asc())
-        .all()
     )
+    return result.scalars().all()

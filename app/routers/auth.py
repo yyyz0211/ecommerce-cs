@@ -1,7 +1,7 @@
 """认证路由：注册、登录、刷新令牌"""
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
@@ -18,16 +18,15 @@ router = APIRouter(prefix="/api/auth", tags=["认证"])
 
 
 @router.post("/register", response_model=UserRegisterResponse, status_code=201)
-def register(req: UserRegisterRequest, db: Session = Depends(get_db)):
+async def register(req: UserRegisterRequest, db: AsyncSession = Depends(get_db)):
     """用户注册"""
-    user = register_user(db, username=req.username, password=req.password, phone=req.phone)
-    return user
+    return await register_user(db, username=req.username, password=req.password, phone=req.phone)
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(req: UserLoginRequest, db: Session = Depends(get_db)):
+async def login(req: UserLoginRequest, db: AsyncSession = Depends(get_db)):
     """用户登录，返回 JWT 令牌"""
-    token = login_user(db, username=req.username, password=req.password)
+    token = await login_user(db, username=req.username, password=req.password)
     return TokenResponse(access_token=token)
 
 
