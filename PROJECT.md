@@ -1,4 +1,4 @@
-# 电商智能客服系统 -- 项目文档 v0.2
+# 电商智能客服系统 -- 项目文档 v0.3
 
 > 个人学习项目，以实践驱动掌握 Python Web 开发 + AI Agent 开发
 > 仓库：https://github.com/yyyz0211/ecommerce-cs
@@ -23,7 +23,7 @@
 |------|------|------|
 | 后端框架 | FastAPI | Python async Web 框架 |
 | 数据库 | MySQL | 关系型数据库 |
-| ORM | SQLAlchemy 2.0 + Alembic | 数据库操作与迁移 |
+| ORM | SQLAlchemy 2.0 async | 异步 ORM（aiomysql + greenlet） |
 | Agent 框架 | LangChain / LangGraph | 构建对话智能体 |
 | AI 模型 | OpenAI API / 国产大模型 API | 根据实际情况选择 |
 | 前端 | 待定（Vue / React） | 后期决定 |
@@ -75,8 +75,10 @@ ecommerce-cs/
 │   ├── main.py              # FastAPI 入口
 │   ├── config.py             # 配置（数据库、JWT、LLM）
 │   ├── database.py           # 数据库连接 + 会话管理
+│   ├── errors.py             # 统一错误码（11 个错误码）
 │   ├── models/               # SQLAlchemy 模型（8 个类 → 8 张表）
 │   │   ├── __init__.py
+│   │   ├── base.py           # 模型基类（独立于 engine，避免循环导入）
 │   │   ├── user.py
 │   │   ├── order.py          # Order + OrderItem + Logistics
 │   │   ├── after_sale.py
@@ -87,7 +89,7 @@ ecommerce-cs/
 │   │   ├── order.py
 │   │   ├── after_sale.py
 │   │   └── chat.py
-│   ├── routers/              # API 路由（13 个端点）
+│   ├── routers/              # API 路由（14 个端点）
 │   │   ├── __init__.py
 │   │   ├── auth.py           # 注册/登录/刷新
 │   │   ├── users.py          # 个人信息 CRUD
@@ -194,6 +196,24 @@ ecommerce-cs/
                          ↓
                返回给用户 + 记录到数据库
 ```
+
+### 4.6 错误格式
+
+所有错误统一返回 `{"code": "...", "message": "..."}`，不单独散落 `detail`：
+
+| code | HTTP 状态码 | 说明 |
+|------|-----------|------|
+| INVALID_TOKEN | 401 | JWT 无效 |
+| USER_NOT_FOUND | 401 | 用户不存在 |
+| WRONG_PASSWORD | 401 | 密码错误 |
+| USERNAME_TAKEN | 409 | 用户名已存在 |
+| ORDER_NOT_FOUND | 404 | 订单不存在 |
+| ORDER_CANNOT_CANCEL | 400 | 订单不可取消（动态 message） |
+| LOGISTICS_NOT_FOUND | 404 | 暂无物流信息 |
+| AFTER_SALE_NOT_FOUND | 404 | 售后记录不存在 |
+| CONVERSATION_NOT_FOUND | 404 | 会话不存在 |
+
+定义位置：`app/errors.py`，全局处理器在 `app/main.py`。
 
 ---
 
@@ -351,6 +371,8 @@ Agent 回复"已转接人工客服，请稍候，会尽快为您处理"
 - [x] 订单列表分页（?page=&size=）
 - [x] 对话会话基础设施（POST session / GET history）
 - [x] 前端调试面板（debug.html）
+- [x] SQLAlchemy 异步迁移（async engine + AsyncSession + select() 语法）
+- [x] 统一错误码（app/errors.py，11 个 AppError + 全局异常处理器）
 
 ### Phase 3：Agent 对话 ← 当前
 - [ ] 接入 LLM API（配置 Key，测试调用）
@@ -468,6 +490,6 @@ pytest
 
 ---
 
-> 文档版本：v0.2
+> 文档版本：v0.3
 > 最后更新：2026-05-29
 > 下一步：Phase 3 Agent 对话
