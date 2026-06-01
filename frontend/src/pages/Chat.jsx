@@ -129,12 +129,11 @@ export default function Chat() {
       </nav>
 
       <div className="chat-container">
-        {/* 对话顶部信息 */}
         <div className="chat-header">
           <div className="chat-header-avatar">AI</div>
           <div className="chat-header-text">
-            <h3>智能客服</h3>
-            <span>在线 | 7x24 小时</span>
+            <h3>智能客服团队</h3>
+            <span>通常几分钟内回复</span>
           </div>
         </div>
 
@@ -144,6 +143,11 @@ export default function Chat() {
               {msg.content}
             </div>
           ))}
+          {sending && (
+            <div className="msg msg-agent" style={{ opacity: 0.6 }}>
+              正在输入...
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
@@ -155,11 +159,11 @@ export default function Chat() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="输入您的问题..."
+              placeholder="发送消息..."
               disabled={sending}
             />
-            <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
-              {sending ? '...' : 'S'}
+            <button className="btn-send" onClick={handleSend} disabled={sending || !inputValue.trim()}>
+              &uarr;
             </button>
           </div>
         </div>
