@@ -36,9 +36,15 @@ function headers() {
  * fetch() 在 HTTP 404/500 时不会自动抛异常，需要手动检查
  */
 async function handleResponse(res) {
-  const data = await res.json();
+  // 先尝试解析 JSON，如果后端挂了返回 HTML，catch 给出提示
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(`服务器返回了非 JSON 响应（状态码 ${res.status}），请检查后端是否正常运行`);
+  }
+
   if (!res.ok) {
-    // 401 表示 token 过期或无效，跳转登录页
     if (res.status === 401) {
       localStorage.removeItem('token');
       window.location.href = '/login';

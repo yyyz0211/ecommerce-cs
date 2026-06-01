@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/users", tags=["用户"])
 @router.get("/me", response_model=UserInfoResponse)
 async def get_my_info(current_user: User = Depends(get_current_user)):
     """获取当前登录用户信息"""
-    return await current_user
+    return current_user
 
 
 @router.patch("/me", response_model=UserInfoResponse)
