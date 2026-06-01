@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getOrders, getOrderDetail, cancelOrder, getLogistics } from '../api';
+import { getOrders, getOrderDetail, cancelOrder, getLogistics, createOrder } from '../api';
 
 /*
  * Orders 页面
@@ -24,6 +24,60 @@ export default function Orders() {
   const [logistics, setLogistics] = useState(null); // 展开订单的物流
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  // ── 创建订单表单状态 ──
+  const [showCreate, setShowCreate] = useState(false);
+  const [newItems, setNewItems] = useState([{ product_name: '', quantity: 1, price: '' }]);
+  const [newAddress, setNewAddress] = useState('');
+
+  // 新增一行商品
+  function addItemRow() {
+    setNewItems([...newItems, { product_name: '', quantity: 1, price: '' }]);
+  }
+
+  // 修改某行商品
+  function updateItem(index, field, value) {
+    const updated = newItems.map((item, i) =>
+      i === index ? { ...item, [field]: value } : item
+    );
+    setNewItems(updated);
+  }
+
+  // 删除某行商品
+  function removeItemRow(index) {
+    if (newItems.length <= 1) return;
+    setNewItems(newItems.filter((_, i) => i !== index));
+  }
+
+  // 提交创建订单
+  async function handleCreate(e) {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    const items = newItems.map((it) => ({
+      product_name: it.product_name.trim(),
+      quantity: parseInt(it.quantity) || 1,
+      price: parseFloat(it.price) || 0,
+    }));
+
+    if (items.some((it) => !it.product_name || it.price <= 0)) {
+      setError('请填写所有商品的名称和有效价格');
+      return;
+    }
+
+    try {
+      await createOrder(items, newAddress || null);
+      setSuccess('订单创建成功！');
+      setShowCreate(false);
+      setNewItems([{ product_name: '', quantity: 1, price: '' }]);
+      setNewAddress('');
+      loadOrders();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   // 页面加载时获取订单
   useEffect(() => {
@@ -115,9 +169,71 @@ export default function Orders() {
       <div className="page">
         <div className="flex-between">
           <h2 style={{ fontSize: 18 }}>我的订单（共 {total} 笔）</h2>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => { setShowCreate(!showCreate); setError(''); setSuccess(''); }}
+          >
+            {showCreate ? '收起' : '+ 创建订单'}
+          </button>
         </div>
 
         {error && <div className="error-msg mt-2">{error}</div>}
+        {success && <div className="success-msg mt-2">{success}</div>}
+
+        {/* 创建订单表单 */}
+        {showCreate && (
+          <div className="card">
+            <h3 style={{ fontSize: 15, marginBottom: 14 }}>新建订单</h3>
+            <form onSubmit={handleCreate}>
+              {newItems.map((item, index) => (
+                <div key={index} className="flex-between gap-2" style={{ marginBottom: 10 }}>
+                  <input
+                    placeholder="商品名称"
+                    value={item.product_name}
+                    onChange={(e) => updateItem(index, 'product_name', e.target.value)}
+                    style={{ flex: 3 }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="数量"
+                    value={item.quantity}
+                    onChange={(e) => updateItem(index, 'quantity', e.target.value)}
+                    style={{ width: 70 }}
+                    min="1"
+                  />
+                  <input
+                    type="number"
+                    placeholder="单价"
+                    value={item.price}
+                    onChange={(e) => updateItem(index, 'price', e.target.value)}
+                    style={{ width: 100 }}
+                    min="0"
+                    step="0.01"
+                  />
+                  <button type="button" className="btn btn-danger btn-sm" onClick={() => removeItemRow(index)}>
+                    删
+                  </button>
+                </div>
+              ))}
+
+              <div className="flex-between gap-2" style={{ marginBottom: 10 }}>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={addItemRow}>
+                  + 添加商品
+                </button>
+                <input
+                  placeholder="收货地址（选填）"
+                  value={newAddress}
+                  onChange={(e) => setNewAddress(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+              </div>
+
+              <button type="submit" className="btn btn-primary">
+                提交订单
+              </button>
+            </form>
+          </div>
+        )}
 
         {loading ? (
           <p style={{ textAlign: 'center', padding: 40, color: '#999' }}>加载中...</p>
