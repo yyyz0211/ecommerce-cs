@@ -1,0 +1,200 @@
+/* ═════════════════════════════════════════
+   全局样式
+   ══════════════════════════════════════════ */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f0f2f5;
+  color: #333;
+  min-height: 100vh;
+}
+
+/* ── 布局 ── */
+.page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* ── 导航栏 ── */
+.navbar {
+  background: #4f46e5;
+  color: #fff;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+}
+
+.navbar a {
+  color: #e0e7ff;
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.navbar a:hover { background: rgba(255,255,255,0.15); }
+.navbar a.active { background: rgba(255,255,255,0.25); color: #fff; }
+
+.navbar-left { display: flex; gap: 4px; }
+.navbar-right { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+
+/* ── 表单 ── */
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #555; }
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus { border-color: #4f46e5; }
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-primary { background: #4f46e5; color: #fff; }
+.btn-primary:hover { background: #4338ca; }
+.btn-secondary { background: #6b7280; color: #fff; }
+.btn-secondary:hover { background: #4b5563; }
+.btn-danger { background: #dc2626; color: #fff; }
+.btn-danger:hover { background: #b91c1c; }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ── 错误/成功提示 ── */
+.error-msg { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; }
+.success-msg { background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; }
+
+/* ── 认证页（登录/注册） ── */
+.auth-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: #f0f2f5;
+}
+
+.auth-card {
+  background: #fff;
+  padding: 40px;
+  border-radius: 12px;
+  width: 400px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.auth-card h1 { font-size: 22px; margin-bottom: 24px; text-align: center; color: #4f46e5; }
+.auth-card .btn { width: 100%; margin-top: 8px; }
+.auth-card .link { text-align: center; margin-top: 16px; font-size: 13px; color: #6b7280; }
+.auth-card .link a { color: #4f46e5; text-decoration: none; }
+
+/* ── 聊天页 ── */
+.chat-container { display: flex; flex-direction: column; height: calc(100vh - 56px); }
+.chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+
+/* 聊天气泡 */
+.msg {
+  max-width: 75%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.msg-user {
+  align-self: flex-end;
+  background: #4f46e5;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.msg-agent {
+  align-self: flex-start;
+  background: #e5e7eb;
+  color: #333;
+  border-bottom-left-radius: 4px;
+}
+
+.msg-system {
+  align-self: center;
+  background: none;
+  color: #9ca3af;
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+/* 输入区域 */
+.chat-input-area {
+  display: flex;
+  gap: 10px;
+  padding: 14px 20px;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+}
+
+.chat-input-area input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+}
+
+.chat-input-area input:focus { border-color: #4f46e5; }
+
+/* ── 订单页 ── */
+.order-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.order-item:hover { background: #f9fafb; }
+.order-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.order-no { font-weight: 600; font-size: 14px; }
+.order-status { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+
+/* 订单状态标签颜色 */
+.status-pending { background: #fef3c7; color: #92400e; }
+.status-paid { background: #dbeafe; color: #1e40af; }
+.status-shipped { background: #ede9fe; color: #6d28d9; }
+.status-delivered { background: #d1fae5; color: #065f46; }
+.status-cancelled { background: #fee2e2; color: #991b1b; }
+
+.order-detail { margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee; font-size: 13px; }
+
+/* ── 工具类 ── */
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.gap-2 { gap: 8px; }
+.mt-2 { margin-top: 12px; }
