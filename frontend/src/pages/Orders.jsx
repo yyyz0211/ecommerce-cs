@@ -142,7 +142,7 @@ export default function Orders() {
 
   /* 订单状态标签的 CSS 类名：status-{status} */
   function statusClass(status) {
-    return `order-status status-${status}`;
+    return `order-badge status-${status}`;
   }
 
   /* 状态中文映射 */
@@ -155,20 +155,21 @@ export default function Orders() {
     <div>
       <nav className="navbar">
         <div className="navbar-left">
-          <span style={{ fontWeight: 700 }}>客服系统</span>
+          <span className="navbar-logo">客服系统</span>
           <NavLink to="/chat">对话</NavLink>
           <NavLink to="/orders" className={({ isActive }) => isActive ? 'active' : ''}>订单</NavLink>
+          <NavLink to="/after-sales">售后</NavLink>
           <NavLink to="/profile">我的</NavLink>
         </div>
         <div className="navbar-right">
           <span>{user?.username}</span>
-          <button className="btn btn-sm btn-secondary" onClick={handleLogout}>退出</button>
+          <button className="btn-logout" onClick={handleLogout}>退出</button>
         </div>
       </nav>
 
       <div className="page">
-        <div className="flex-between">
-          <h2 style={{ fontSize: 18 }}>我的订单（共 {total} 笔）</h2>
+        <div className="order-list-header">
+          <h2 className="page-title">我的订单（共 {total} 笔）</h2>
           <button
             className="btn btn-primary btn-sm"
             onClick={() => { setShowCreate(!showCreate); setError(''); setSuccess(''); }}
@@ -188,12 +189,14 @@ export default function Orders() {
               {newItems.map((item, index) => (
                 <div key={index} className="flex-between gap-2" style={{ marginBottom: 10 }}>
                   <input
+                    className="inline-input"
                     placeholder="商品名称"
                     value={item.product_name}
                     onChange={(e) => updateItem(index, 'product_name', e.target.value)}
                     style={{ flex: 3 }}
                   />
                   <input
+                    className="inline-input"
                     type="number"
                     placeholder="数量"
                     value={item.quantity}
@@ -202,6 +205,7 @@ export default function Orders() {
                     min="1"
                   />
                   <input
+                    className="inline-input"
                     type="number"
                     placeholder="单价"
                     value={item.price}

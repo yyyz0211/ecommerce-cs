@@ -46,6 +46,7 @@ export default function Register() {
     <div className="auth-page">
       <div className="auth-card">
         <h1>注册新账号</h1>
+        <p className="subtitle">创建账号开始购物</p>
 
         {error && <div className="error-msg">{error}</div>}
 

@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Chat from './pages/Chat';
 import Orders from './pages/Orders';
+import AfterSales from './pages/AfterSales';
 import Profile from './pages/Profile';
 
 /*
@@ -60,6 +61,7 @@ export default function App() {
         {/* 需要登录的页面 */}
         <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
         <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+        <Route path="/after-sales" element={<ProtectedRoute><AfterSales /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
 
         {/* 默认跳转到对话页 */}

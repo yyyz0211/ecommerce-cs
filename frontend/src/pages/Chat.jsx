@@ -114,49 +114,54 @@ export default function Chat() {
 
   return (
     <div>
-      {/* 导航栏 */}
       <nav className="navbar">
         <div className="navbar-left">
-          <span style={{ fontWeight: 700 }}>客服系统</span>
+          <span className="navbar-logo">客服系统</span>
           <NavLink to="/chat" className={({ isActive }) => isActive ? 'active' : ''}>对话</NavLink>
           <NavLink to="/orders">订单</NavLink>
+          <NavLink to="/after-sales">售后</NavLink>
           <NavLink to="/profile">我的</NavLink>
         </div>
         <div className="navbar-right">
           <span>{user?.username}</span>
-          <button className="btn btn-sm btn-secondary" onClick={handleLogout}>退出</button>
+          <button className="btn-logout" onClick={handleLogout}>退出</button>
         </div>
       </nav>
 
-      {/* 消息列表 */}
       <div className="chat-container">
+        {/* 对话顶部信息 */}
+        <div className="chat-header">
+          <div className="chat-header-avatar">AI</div>
+          <div className="chat-header-text">
+            <h3>智能客服</h3>
+            <span>在线 | 7x24 小时</span>
+          </div>
+        </div>
+
         <div className="chat-messages">
           {messages.map((msg, i) => (
             <div key={i} className={`msg msg-${msg.role}`}>
               {msg.content}
             </div>
           ))}
-          {/*
-            * 这个空 div 是滚动锚点：每次 messages 变化，
-            * useEffect 调用 scrollIntoView 滚动到这里
-            */}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 输入区域 */}
-        <div className="chat-input-area">
-          <input
-            ref={inputRef}
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="输入您的问题...（Enter 发送）"
-            disabled={sending}
-          />
-          <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
-            {sending ? '发送中...' : '发送'}
-          </button>
+        <div className="chat-input-wrapper">
+          <div className="chat-input-area">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="输入您的问题..."
+              disabled={sending}
+            />
+            <button className="btn btn-primary" onClick={handleSend} disabled={sending}>
+              {sending ? '...' : 'S'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

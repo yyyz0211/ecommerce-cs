@@ -47,6 +47,7 @@ export default function Login() {
     <div className="auth-page">
       <div className="auth-card">
         <h1>电商客服系统</h1>
+        <p className="subtitle">登录您的账号开始使用</p>
 
         {error && <div className="error-msg">{error}</div>}
 

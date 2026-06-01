@@ -49,14 +49,15 @@ export default function Profile() {
     <div>
       <nav className="navbar">
         <div className="navbar-left">
-          <span style={{ fontWeight: 700 }}>客服系统</span>
+          <span className="navbar-logo">客服系统</span>
           <NavLink to="/chat">对话</NavLink>
           <NavLink to="/orders">订单</NavLink>
+          <NavLink to="/after-sales">售后</NavLink>
           <NavLink to="/profile" className={({ isActive }) => isActive ? 'active' : ''}>我的</NavLink>
         </div>
         <div className="navbar-right">
           <span>{user?.username}</span>
-          <button className="btn btn-sm btn-secondary" onClick={handleLogout}>退出</button>
+          <button className="btn-logout" onClick={handleLogout}>退出</button>
         </div>
       </nav>
 
