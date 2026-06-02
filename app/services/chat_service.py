@@ -1,5 +1,7 @@
 """对话服务：会话管理、消息记录、Agent 编排"""
 
+import asyncio
+import json
 from typing import Optional
 
 from langchain_core.messages import AIMessage, HumanMessage
@@ -9,8 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agent.graph import _db_context, agent_graph
 from app.agent.state import AgentState
 from app.errors import CONVERSATION_NOT_FOUND
-from app.models.conversation import Conversation, ConversationMemory, Message
+from app.models.conversation import Conversation, Message
 from app.models.user import User
+from app.services.memory_service import save_conversation_memory, save_memory_background
 
 
 async def get_or_create_conversation(db: AsyncSession, user: User) -> Conversation:
@@ -104,53 +107,6 @@ async def get_conversation_messages(
     return result.scalars().all()
 
 
-async def get_conversation_memory(
-    db: AsyncSession, conversation_id: int, user_id: int
-) -> list[ConversationMemory]:
-    """获取会话的记忆摘要/偏好/事实等"""
-    await get_conversation(db, conversation_id, user_id)
-    result = await db.execute(
-        select(ConversationMemory)
-        .where(ConversationMemory.conversation_id == conversation_id)
-        .order_by(ConversationMemory.updated_at.desc(), ConversationMemory.id.desc())
-    )
-    return result.scalars().all()
-
-
-async def save_conversation_memory(
-    db: AsyncSession,
-    conversation_id: int,
-    user_id: int,
-    memory_type: str,
-    content: str,
-) -> ConversationMemory:
-    """保存或更新会话记忆"""
-    await get_conversation(db, conversation_id, user_id)
-
-    result = await db.execute(
-        select(ConversationMemory).where(
-            ConversationMemory.conversation_id == conversation_id,
-            ConversationMemory.memory_type == memory_type,
-        )
-    )
-    memory = result.scalar_one_or_none()
-
-    if memory:
-        memory.content = content
-    else:
-        memory = ConversationMemory(
-            conversation_id=conversation_id,
-            user_id=user_id,
-            memory_type=memory_type,
-            content=content,
-        )
-        db.add(memory)
-
-    await db.commit()
-    await db.refresh(memory)
-    return memory
-
-
 async def process_agent_message(
     db: AsyncSession,
     user: User,
@@ -161,21 +117,19 @@ async def process_agent_message(
     处理用户消息并返回 Agent 回复
 
     流程：
-    1. 加载历史记忆与历史消息
-    2. 构建 AgentState → 运行 LangGraph
-    3. 保存用户消息 + Agent 回复到数据库
-    4. 返回 Agent 的文本回复
+    1. 保存用户消息
+    2. 加载历史消息 → 构建 AgentState（记忆由 load_memory 节点从 DB 加载）
+    3. 运行 LangGraph
+    4. 从图结果中提取 agent_reply + 结构化 task_state
+    5. 保存 Agent 回复 + task_state 到 DB
+    6. 后台异步生成 summary（LLM 压缩）
+    7. 返回 Agent 回复
     """
     # 1. 保存用户消息
     await add_message(db, conversation, "user", user_content)
 
-    # 2. 加载会话记忆（单独表）
-    memories = await get_conversation_memory(db, conversation.id, user.id)
-    memory_text = "\n".join(
-        f"- {memory.memory_type}: {memory.content}" for memory in memories if memory.content
-    )
-
-    # 3. 加载历史消息（最近 20 条），转为 LangChain 格式
+    # 2. 加载历史消息（最近 20 条），转为 LangChain 格式
+    #    记忆不再在这里注入消息列表，而是由 graph 的 load_memory 节点加载到 state.memory
     history = await get_conversation_messages(db, conversation.id, user.id, limit=20)
     lc_messages = []
     for msg in history:
@@ -184,37 +138,49 @@ async def process_agent_message(
         elif msg.role == "agent":
             lc_messages.append(AIMessage(content=msg.content))
 
-    if memory_text:
-        lc_messages.insert(
-            0,
-            HumanMessage(
-                content=f"[会话记忆]\n{memory_text}\n\n请结合以上记忆理解当前对话，但不要把它当成用户新发言。"
-            ),
-        )
-
-    # 4. 跑 Agent（db 通过 state 注入给工具节点使用）
+    # 3. 跑 Agent（db 通过 ContextVar 注入 Graph 节点）
     initial_state: AgentState = {
         "messages": lc_messages,
         "user_id": user.id,
         "conversation_id": conversation.id,
+        "memory": {},  # load_memory 节点会从 DB 填充
     }
-
-    # 通过 ContextVar 将 db session 注入 Graph 节点
     _db_context.set(db)
     result = await agent_graph.ainvoke(initial_state)
 
-    # 5. 提取 Agent 最终回复（最后一条 AI 消息）
+    # 4. 提取 Agent 回复 + 结构化 task_state
+    #    task_state 从 AIMessage 的 tool_calls 提取，不依赖自然语言关键词匹配
     final_messages = result["messages"]
     agent_reply = ""
+    tool_names: set[str] = set()
     for msg in reversed(final_messages):
-        if isinstance(msg, AIMessage) and msg.content:
-            agent_reply = msg.content
-            break
+        if isinstance(msg, AIMessage):
+            if not agent_reply and msg.content:
+                agent_reply = msg.content
+            if msg.tool_calls:
+                for tc in msg.tool_calls:
+                    tool_names.add(tc["name"])
 
     if not agent_reply:
         agent_reply = "抱歉，我暂时无法处理您的请求，请稍后再试。"
 
-    # 6. 保存 Agent 回复
+    # 5. 保存 Agent 回复 + 结构化 task_state
     await add_message(db, conversation, "agent", agent_reply)
+
+    if "submit_after_sale" in tool_names:
+        last_action = "submitted_after_sale"
+    elif tool_names:
+        last_action = "queried_order"
+    else:
+        last_action = "chat"
+    await save_conversation_memory(
+        db, conversation.id, user.id, "task_state",
+        json.dumps({"last_action": last_action, "tools_called": list(tool_names)}, ensure_ascii=False),
+    )
+
+    # 6. 后台异步生成 summary（LLM 压缩，不阻塞用户回复）
+    asyncio.create_task(
+        save_memory_background(conversation.id, user.id)
+    )
 
     return agent_reply

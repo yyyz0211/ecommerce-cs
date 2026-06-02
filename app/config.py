@@ -18,10 +18,15 @@ class Settings:
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
-    # --- LLM（Phase 3 启用） ---
+    # --- LLM ---
     OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     OPENAI_BASE_URL: Optional[str] = os.getenv("OPENAI_BASE_URL")
     LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+
+    # ── 摘要压缩专用配置（默认复用主链路，可单独配以隔离速率配额）──
+    LLM_SUMMARY_MODEL: str = os.getenv("LLM_SUMMARY_MODEL", LLM_MODEL)
+    LLM_SUMMARY_API_KEY: Optional[str] = os.getenv("LLM_SUMMARY_API_KEY", OPENAI_API_KEY)
+    LLM_SUMMARY_BASE_URL: Optional[str] = os.getenv("LLM_SUMMARY_BASE_URL", OPENAI_BASE_URL)
 
 
 settings = Settings()

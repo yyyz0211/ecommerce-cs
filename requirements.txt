@@ -13,3 +13,7 @@ httpx
 openai
 langgraph
 langchain-core
+
+# 测试
+pytest
+pytest-asyncio

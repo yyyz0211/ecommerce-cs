@@ -1,4 +1,18 @@
-"""LangGraph Agent 图 — ReAct 循环：调 LLM → 判断 → 执行工具 → 循环"""
+"""LangGraph Agent 图 — ReAct 循环
+
+图结构:
+  START → load_memory → call_llm ──┬── 有 tool_call ──→ execute_tool ──┐
+                                   │                                  │
+                                   └── 无 tool_call ──→ END           │
+                                                                      │
+                                            ←─────────────────────────┘
+                                              (回到 call_llm 继续)
+
+设计要点:
+- 使用原生 AsyncOpenAI（兼容 DeepSeek），而非 LangChain 的 ChatOpenAI
+- LangChain @tool 装饰器仅用于生成 OpenAI function-calling schema
+- db session 通过 ContextVar 注入各节点，避免 State 持有一个无法序列化的 db 对象
+"""
 
 import json
 from contextvars import ContextVar
@@ -15,7 +29,9 @@ from app.agent.state import AgentState
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.tools import AGENT_TOOLS, execute_tool
 
-# ContextVar 用于在协程之间传递 db session（LangGraph 节点内部可访问）
+# ContextVar 是协程局部变量，每个请求的 db session 独立存储。
+# 比 threading.local 更适合 async 场景——同一线程可能同时跑多个协程。
+_db_context: ContextVar[AsyncSession] = ContextVar("db")
 _db_context: ContextVar[AsyncSession] = ContextVar("db")
 
 # DeepSeek 兼容 OpenAI SDK，只需设置 base_url
@@ -40,12 +56,35 @@ def _tools_for_llm():
     ]
 
 
+# ── 节点 0: 加载记忆 ──
+
+async def load_memory_node(state: AgentState) -> dict:
+    """从 DB 加载会话记忆到 state.memory（只读快照，图内不再修改）"""
+    # 延迟导入避免循环依赖（chat_service → graph → memory_service）
+    from app.services.memory_service import get_conversation_memory
+
+    db = _db_context.get()
+    memories = await get_conversation_memory(db, state["conversation_id"], state["user_id"])
+    memory: dict = {}
+    for m in memories:
+        if m.content:
+            memory[m.memory_type] = m.content
+    if memory:
+        agent_logger.info(f"加载记忆: {list(memory.keys())}")
+    return {"memory": memory}
+
+
 # ── 节点 1: 调用 LLM ──
 
 async def call_llm_node(state: AgentState) -> dict:
     """把当前消息列表发给 LLM，获取回复或工具调用指令"""
-    # 构建消息列表：System prompt（含用户上下文）+ 历史消息
-    system_content = f"{SYSTEM_PROMPT}\n\n当前用户 ID：{state['user_id']}。用户已登录，不需要询问其身份。"
+    # 构建消息列表：System prompt（含用户上下文 + 记忆）+ 历史消息
+    memory = state.get("memory", {})
+    memory_text = "\n".join(f"- {k}: {v}" for k, v in memory.items()) if memory else ""
+    if memory_text:
+        system_content = f"{SYSTEM_PROMPT}\n\n[会话记忆]\n{memory_text}\n\n当前用户 ID：{state['user_id']}。"
+    else:
+        system_content = f"{SYSTEM_PROMPT}\n\n当前用户 ID：{state['user_id']}。"
     api_messages = [{"role": "system", "content": system_content}]
     for msg in state["messages"]:
         if isinstance(msg, HumanMessage):
@@ -135,10 +174,12 @@ async def execute_tool_node(state: AgentState) -> dict:
 def build_agent_graph() -> StateGraph:
     workflow = StateGraph(AgentState)
 
+    workflow.add_node("load_memory", load_memory_node)
     workflow.add_node("call_llm", call_llm_node)
     workflow.add_node("execute_tool", execute_tool_node)
 
-    workflow.set_entry_point("call_llm")
+    workflow.set_entry_point("load_memory")
+    workflow.add_edge("load_memory", "call_llm")
 
     workflow.add_conditional_edges(
         "call_llm",
