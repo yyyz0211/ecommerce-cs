@@ -1,19 +1,11 @@
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { updateMyInfo } from '../api';
-
-/*
- * Profile 页面
- *
- * 功能：查看个人信息、修改手机号和收货地址
- * 特点：编辑状态和查看状态切换用 editing 变量控制
- */
 
 export default function Profile() {
   const { user, loginUser, logoutUser } = useAuth();
   const navigate = useNavigate();
-
   const [editing, setEditing] = useState(false);
   const [phone, setPhone] = useState(user?.phone || '');
   const [address, setAddress] = useState(user?.default_address || '');
@@ -22,104 +14,49 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
 
   async function handleSave() {
-    setError('');
-    setSuccess('');
+    setError(''); setSuccess('');
     try {
       setLoading(true);
-      const data = { phone: phone || null, default_address: address || null };
-      await updateMyInfo(data);
-      // 更新 Context 中的用户信息，同步页面显示
+      await updateMyInfo({ phone: phone || null, default_address: address || null });
       const token = localStorage.getItem('token');
       if (token) await loginUser(token);
-      setEditing(false);
-      setSuccess('保存成功');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleLogout() {
-    logoutUser();
-    navigate('/login');
+      setEditing(false); setSuccess('保存成功');
+    } catch(e) { setError(e.message); }
+    finally { setLoading(false); }
   }
 
   return (
-    <div>
-      <nav className="navbar">
-        <div className="navbar-left">
-          <span className="navbar-logo">客服系统</span>
-          <NavLink to="/chat">对话</NavLink>
-          <NavLink to="/orders">订单</NavLink>
-          <NavLink to="/after-sales">售后</NavLink>
-          <NavLink to="/profile" className={({ isActive }) => isActive ? 'active' : ''}>我的</NavLink>
+    <div style={{maxWidth:600,margin:'0 auto',padding:20}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',gap:16}}>
+          <span onClick={()=>navigate('/chat')} style={{cursor:'pointer',fontSize:13,color:'#1f93ff'}}>← 返回对话</span>
+          <h2 style={{fontSize:20,fontWeight:700}}>个人信息</h2>
         </div>
-        <div className="navbar-right">
-          <span>{user?.username}</span>
-          <button className="btn-logout" onClick={handleLogout}>退出</button>
-        </div>
-      </nav>
+        <button className="btn btn-sm btn-secondary" onClick={()=>{logoutUser();navigate('/login')}}>退出</button>
+      </div>
 
-      <div className="page">
-        <div className="card">
-          <div className="flex-between">
-            <h2 style={{ fontSize: 18 }}>个人信息</h2>
-            {!editing && (
-              <button className="btn btn-sm btn-primary" onClick={() => setEditing(true)}>
-                编辑
-              </button>
-            )}
+      {error && <div className="error-msg">{error}</div>}
+      {success && <div className="success-msg">{success}</div>}
+
+      <div className="card">
+        {editing ? (
+          <div>
+            <div className="form-group"><label>手机号</label><input type="text" value={phone} onChange={e=>setPhone(e.target.value)} /></div>
+            <div className="form-group"><label>收货地址</label><input type="text" value={address} onChange={e=>setAddress(e.target.value)} /></div>
+            <div className="flex-between gap-2">
+              <button className="btn btn-primary" onClick={handleSave} disabled={loading}>{loading?'保存中...':'保存'}</button>
+              <button className="btn btn-secondary" onClick={()=>{setEditing(false);setPhone(user?.phone||'');setAddress(user?.default_address||'');setError('')}}>取消</button>
+            </div>
           </div>
-
-          {error && <div className="error-msg">{error}</div>}
-          {success && <div className="success-msg">{success}</div>}
-
-          {editing ? (
-            /* 编辑模式 */
-            <div style={{ marginTop: 16 }}>
-              <div className="form-group">
-                <label>手机号</label>
-                <input
-                  type="text"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
-              <div className="form-group">
-                <label>默认收货地址</label>
-                <input
-                  type="text"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                />
-              </div>
-              <div className="flex-between gap-2">
-                <button className="btn btn-primary" onClick={handleSave} disabled={loading}>
-                  {loading ? '保存中...' : '保存'}
-                </button>
-                <button className="btn btn-secondary" onClick={() => {
-                  setEditing(false);
-                  setPhone(user?.phone || '');
-                  setAddress(user?.default_address || '');
-                  setError('');
-                }}>
-                  取消
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* 查看模式 */
-            <div style={{ marginTop: 16, fontSize: 14, lineHeight: 2 }}>
-              <p><strong>用户名：</strong>{user?.username}</p>
-              <p><strong>手机号：</strong>{user?.phone || '未设置'}</p>
-              <p><strong>收货地址：</strong>{user?.default_address || '未设置'}</p>
-              <p style={{ color: '#999', fontSize: 12 }}>
-                注册时间：{user?.created_at ? new Date(user.created_at).toLocaleString() : '-'}
-              </p>
-            </div>
-          )}
-        </div>
+        ) : (
+          <div style={{fontSize:14,lineHeight:2.2}}>
+            <div className="profile-info-row"><span className="profile-label">用户名</span><span>{user?.username}</span></div>
+            <div className="profile-info-row"><span className="profile-label">手机号</span><span>{user?.phone||'未设置'}</span></div>
+            <div className="profile-info-row"><span className="profile-label">地址</span><span>{user?.default_address||'未设置'}</span></div>
+            <div className="profile-info-row"><span className="profile-label">注册时间</span><span>{user?.created_at?new Date(user.created_at).toLocaleString():'-'}</span></div>
+            <button className="btn btn-sm btn-primary mt-3" onClick={()=>setEditing(true)}>编辑资料</button>
+          </div>
+        )}
       </div>
     </div>
   );

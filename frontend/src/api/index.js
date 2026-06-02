@@ -165,6 +165,12 @@ export async function getAfterSales() {
 // 对话
 // ══════════════════════════════════════════════════
 
+/** GET /api/chat/sessions — 用户的所有对话会话 */
+export async function getConversations() {
+  const res = await fetch(`${BASE}/chat/sessions`, { headers: headers() });
+  return handleResponse(res);
+}
+
 /** POST /api/chat/session — 创建新对话 */
 export async function createChatSession() {
   const res = await fetch(`${BASE}/chat/session`, {
@@ -176,5 +182,14 @@ export async function createChatSession() {
 /** GET /api/chat/history/{conversationId} — 对话历史 */
 export async function getChatHistory(conversationId) {
   const res = await fetch(`${BASE}/chat/history/${conversationId}`, { headers: headers() });
+  return handleResponse(res);
+}
+
+/** POST /api/chat/message — 发送消息，获取 Agent 回复 */
+export async function sendMessage(conversationId, content) {
+  const res = await fetch(`${BASE}/chat/message`, {
+    method: 'POST', headers: headers(),
+    body: JSON.stringify({ conversation_id: conversationId, content }),
+  });
   return handleResponse(res);
 }

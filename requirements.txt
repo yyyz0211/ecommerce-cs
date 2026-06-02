@@ -10,3 +10,6 @@ python-jose[cryptography]
 passlib[bcrypt]
 python-dotenv
 httpx
+openai
+langgraph
+langchain-core
