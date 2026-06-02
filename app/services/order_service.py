@@ -11,7 +11,6 @@ from app.errors import AppError, ORDER_NOT_FOUND, LOGISTICS_NOT_FOUND
 from app.models.order import Order, OrderItem, Logistics
 
 _ALLOWED_CANCEL_STATUSES = {"pending", "paid"}
-_ALLOWED_AFTER_SALE_STATUSES = {"paid", "shipped", "delivered"}
 
 
 async def get_user_orders(

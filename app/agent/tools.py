@@ -1,8 +1,5 @@
 """Agent 工具定义 — 封装现有 service 层为 LLM 可调用的工具"""
 
-import json
-from typing import Any
-
 from langchain_core.tools import tool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

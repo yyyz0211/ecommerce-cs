@@ -76,14 +76,6 @@ export async function login(username, password) {
   return handleResponse(res);
 }
 
-/** POST /api/auth/refresh — 刷新 token */
-export async function refreshToken() {
-  const res = await fetch(`${BASE}/auth/refresh`, {
-    method: 'POST', headers: headers(),
-  });
-  return handleResponse(res);
-}
-
 // ══════════════════════════════════════════════════
 // 用户
 // ══════════════════════════════════════════════════
@@ -165,13 +157,7 @@ export async function getAfterSales() {
 // 对话
 // ══════════════════════════════════════════════════
 
-/** GET /api/chat/sessions — 用户的所有对话会话 */
-export async function getConversations() {
-  const res = await fetch(`${BASE}/chat/sessions`, { headers: headers() });
-  return handleResponse(res);
-}
-
-/** POST /api/chat/session — 创建新对话 */
+/** POST /api/chat/session — 获取或创建对话会话 */
 export async function createChatSession() {
   const res = await fetch(`${BASE}/chat/session`, {
     method: 'POST', headers: headers(),

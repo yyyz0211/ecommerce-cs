@@ -32,7 +32,6 @@ from app.agent.tools import AGENT_TOOLS, execute_tool
 # ContextVar 是协程局部变量，每个请求的 db session 独立存储。
 # 比 threading.local 更适合 async 场景——同一线程可能同时跑多个协程。
 _db_context: ContextVar[AsyncSession] = ContextVar("db")
-_db_context: ContextVar[AsyncSession] = ContextVar("db")
 
 # DeepSeek 兼容 OpenAI SDK，只需设置 base_url
 client = AsyncOpenAI(
