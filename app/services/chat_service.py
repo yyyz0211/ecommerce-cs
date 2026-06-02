@@ -13,8 +13,20 @@ from app.models.conversation import Conversation, ConversationMemory, Message
 from app.models.user import User
 
 
-async def create_conversation(db: AsyncSession, user: User) -> Conversation:
-    """为用户创建一个新的客服对话会话"""
+async def get_or_create_conversation(db: AsyncSession, user: User) -> Conversation:
+    """获取或创建用户的客服对话会话 -- 一个用户只有一个 active 会话"""
+    # 先查是否已有 active 会话
+    result = await db.execute(
+        select(Conversation).where(
+            Conversation.user_id == user.id,
+            Conversation.status == "active",
+        ).order_by(Conversation.updated_at.desc()).limit(1)
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        return existing
+
+    # 没有则创建新的
     conversation = Conversation(user_id=user.id)
     db.add(conversation)
     await db.commit()

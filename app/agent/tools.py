@@ -4,6 +4,7 @@ import json
 from typing import Any
 
 from langchain_core.tools import tool
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.order import Order
@@ -21,20 +22,50 @@ def query_orders(user_id: str) -> str:
 
 @tool
 def query_order_detail(user_id: str, order_id: str) -> str:
-    """查订单详情，含商品明细。参数 user_id 用户 ID，order_id 订单 ID。"""
+    """查订单详情，含商品明细。order_id 可以是数字 ID 或订单号（如 202605280001）。"""
     return "Tool must be executed with db context"
 
 
 @tool
 def query_logistics(user_id: str, order_id: str) -> str:
-    """查订单物流信息。参数 user_id 用户 ID，order_id 订单 ID。"""
+    """查订单物流信息。order_id 可以是数字 ID 或订单号。"""
     return "Tool must be executed with db context"
 
 
 @tool
-def submit_after_sale(user_id: str, order_id: str, type_: str, reason: str) -> str:
-    """提交售后申请。type_ 为 return/refund/exchange，reason 为申请原因。"""
+def submit_after_sale(order_id: str, type_: str, reason: str) -> str:
+    """提交售后申请。order_id 可以是数字 ID 或订单号（如 202605280001）；
+    type_ 为 return/refund/exchange，reason 为申请原因。"""
     return "Tool must be executed with db context"
+
+
+# ── 辅助：智能解析 order_id（支持数字 ID 或订单号） ──
+
+async def _resolve_order_id(db: AsyncSession, user_id: int, raw: str):
+    """
+    将 LLM 传来的 order_id 字符串解析为数据库数字 ID。
+    先尝试 int() 直接转数字；失败则按订单号 (order_no) 模糊查库。
+    返回 (order_id, error_message)，二选一非 None。
+    """
+    raw = raw.strip() if raw else ""
+    if not raw:
+        return None, "错误：订单 ID 为空，请提供有效的订单 ID 或订单号"
+
+    # 优先尝试纯数字 ID
+    try:
+        return int(raw), None
+    except ValueError:
+        pass
+
+    # 按订单号查找（用户的订单）
+    result = await db.execute(
+        select(Order).where(Order.order_no == raw, Order.user_id == user_id)
+    )
+    order = result.scalar_one_or_none()
+    if order:
+        return order.id, None
+
+    return None, f"错误：未找到订单 {raw}（该订单号不存在或不属于当前用户）"
 
 
 # ── 工具执行器——由 graph 的 execute_tool_node 调用 ──
@@ -52,10 +83,9 @@ async def execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_i
         return "\n".join(lines)
 
     elif tool_name == "query_order_detail":
-        try:
-            order_id = int(tool_args["order_id"])
-        except (ValueError, TypeError, KeyError):
-            return f"无效的订单 ID：{tool_args.get('order_id', '未知')}，请使用数字 ID（如 ID=10）"
+        order_id, err = await _resolve_order_id(db, user_id, tool_args.get("order_id", ""))
+        if err:
+            return err
         detail = await get_order_detail(db, order_id, user_id)
         order = detail["order"]
         items = detail["items"]
@@ -68,10 +98,9 @@ async def execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_i
         return "\n".join(lines)
 
     elif tool_name == "query_logistics":
-        try:
-            order_id = int(tool_args["order_id"])
-        except (ValueError, TypeError, KeyError):
-            return f"无效的订单 ID：{tool_args.get('order_id', '未知')}，请使用数字 ID"
+        order_id, err = await _resolve_order_id(db, user_id, tool_args.get("order_id", ""))
+        if err:
+            return err
         logistics = await get_order_logistics(db, order_id, user_id)
         return (
             f"订单 {order_id} 物流：\n"
@@ -81,9 +110,15 @@ async def execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_i
         )
 
     elif tool_name == "submit_after_sale":
-        order_id = int(tool_args["order_id"])
-        type_ = tool_args["type_"]
-        reason = tool_args["reason"]
+        order_id, err = await _resolve_order_id(db, user_id, tool_args.get("order_id", ""))
+        if err:
+            return err
+        type_ = tool_args.get("type_", "")
+        reason = tool_args.get("reason", "")
+        if not type_ or type_ not in ("return", "refund", "exchange"):
+            return f"错误：无效的售后类型 {type_}，可选：return / refund / exchange"
+        if not reason.strip():
+            return "错误：请提供售后原因"
         record = await create_after_sale(db, user_id, order_id, type_, reason)
         return (
             f"售后申请已提交！\n"
@@ -93,7 +128,7 @@ async def execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_i
         )
 
     else:
-        return f"未知工具：{tool_name}"
+        return f"错误：未知工具 {tool_name}"
 
 
 # 工具列表（给 LLM 看，帮助它决定调用哪个）
