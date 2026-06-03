@@ -18,10 +18,12 @@ from openai import AsyncOpenAI
 
 from app.config import settings
 from app.logger import agent_logger
-from app.agent.state import AgentState
+from app.agent.schemas.state import AgentState
 from app.agent.prompts import SYSTEM_PROMPT
-from app.agent.confidence import calculate_confidence
-from app.agent.task_state import (
+from app.agent.core.confidence import calculate_confidence
+from app.agent.schemas.results import parse_tool_results_from_messages
+from app.agent.core.state_machine import reduce_task_state
+from app.agent.schemas.task_state import (
     MemoryType,
     NextAction,
     TaskIntent,
@@ -129,11 +131,14 @@ async def call_llm_node(state: AgentState) -> dict:
         elif isinstance(msg, ToolMessage):
             api_messages.append({"role": "tool", "content": msg.content, "tool_call_id": msg.tool_call_id})
 
-    response = await client.chat.completions.create(
-        model=settings.LLM_MODEL,
-        messages=api_messages,
-        tools=_tools_for_llm(),
-    )
+    request_kwargs = {
+        "model": settings.LLM_MODEL,
+        "messages": api_messages,
+    }
+    if state.get("tool_call_count", 0) == 0:
+        request_kwargs["tools"] = _tools_for_llm()
+
+    response = await client.chat.completions.create(**request_kwargs)
 
     ai_msg = response.choices[0].message
 
@@ -147,13 +152,17 @@ async def call_llm_node(state: AgentState) -> dict:
 
     # 如果 LLM 要求调工具，构建 tool_calls 格式
     if ai_msg.tool_calls:
+        tool_calls = list(ai_msg.tool_calls)
+        if len(tool_calls) > 1:
+            agent_logger.info(f"模型一次请求了 {len(tool_calls)} 个工具，仅执行第一个")
+            tool_calls = tool_calls[:1]
         lc_tool_calls = [
             {
                 "id": tc.id,
                 "name": tc.function.name,
                 "args": json.loads(tc.function.arguments),
             }
-            for tc in ai_msg.tool_calls
+            for tc in tool_calls
         ]
         return {"messages": [AIMessage(content=ai_msg.content or "", tool_calls=lc_tool_calls)]}
 
@@ -166,6 +175,8 @@ async def call_llm_node(state: AgentState) -> dict:
 
 def should_continue(state: AgentState) -> Literal["execute_tool", END]:
     """如果最后一条 AI 消息带有 tool_calls，就继续执行工具。"""
+    if state.get("tool_call_count", 0) >= 1:
+        return END
     last_msg = state["messages"][-1]
     if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
         return "execute_tool"
@@ -181,7 +192,11 @@ async def execute_tool_node(state: AgentState) -> dict:
     user_id = state["user_id"]
 
     tool_messages = []
+    executed_count = 0
     for tc in last_msg.tool_calls:
+        if state.get("tool_call_count", 0) + executed_count >= 1:
+            agent_logger.info(f"跳过工具 {tc['name']}：当前轮已执行过工具")
+            continue
         agent_logger.info(f"执行工具: {tc['name']}({tc['args']})")
         result = await execute_tool(
             tool_name=tc["name"],
@@ -190,16 +205,33 @@ async def execute_tool_node(state: AgentState) -> dict:
             user_id=user_id,
         )
         # 工具返回内容只记录前缀，避免日志被大段响应撑爆
-        agent_logger.info(f"工具结果: {result[:80]}...")
-        tool_messages.append(ToolMessage(content=result, tool_call_id=tc["id"]))
+        agent_logger.info(f"工具结果: {result.message_for_log(80)}...")
+        tool_messages.append(ToolMessage(content=result.to_tool_message(), tool_call_id=tc["id"]))
+        executed_count += 1
 
-    return {"messages": tool_messages}
+    return {
+        "messages": tool_messages,
+        "tool_call_count": state.get("tool_call_count", 0) + executed_count,
+    }
 
 
 def _build_task_state(state: AgentState) -> TaskState:
     """根据当前消息与工具执行情况，生成一个保底的结构化任务状态。
 
     这是过渡逻辑：优先保证 task_state 始终可落库，再逐步演进到更细的状态推断。"""
+    has_structured_tool_result = any(
+        isinstance(msg, ToolMessage) and (msg.content or "").strip().startswith("{")
+        for msg in state.get("messages", [])
+    )
+    if has_structured_tool_result:
+        parsed_results = parse_tool_results_from_messages(state.get("messages", []))
+        return reduce_task_state(
+            user_id=state["user_id"],
+            old_state=state.get("task_state"),
+            messages=state.get("messages", []),
+            tool_results=parsed_results,
+        )
+
     last_user_message = ""
     for msg in reversed(state.get("messages", [])):
         if isinstance(msg, HumanMessage):

@@ -5,8 +5,8 @@ These tests cover deterministic graph helpers without calling the LLM.
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from app.agent.graph import _build_task_state, _format_memory_for_prompt
-from app.agent.task_state import TaskIntent, TaskStage, TaskStatus
+from app.agent.core.graph import _build_task_state, _format_memory_for_prompt
+from app.agent.schemas.task_state import TaskIntent, TaskStage, TaskStatus
 
 
 def _state(messages):

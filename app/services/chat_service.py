@@ -3,13 +3,10 @@
 import asyncio
 from typing import Optional
 
-from langchain_core.messages import AIMessage, HumanMessage
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.graph import agent_graph
-from app.agent.state import AgentState
-from app.agent.task_state import NextAction, TaskIntent, TaskStage, TaskState, TaskStatus
+from app.agent.core.runtime import run_agent
 from app.errors import CONVERSATION_NOT_FOUND
 from app.models.conversation import Conversation, Message
 from app.models.user import User
@@ -101,17 +98,6 @@ async def get_conversation_messages(
     return result.scalars().all()
 
 
-def _build_default_task_state(user_id: int, confidence: float = 0.5) -> TaskState:
-    return TaskState(
-        stage=TaskStage.NEW,
-        intent=TaskIntent.OTHER,
-        status=TaskStatus.PENDING,
-        customer_id=user_id,
-        confidence=confidence,
-        next_action=NextAction.REPLY_USER,
-    )
-
-
 async def process_agent_message(
     db: AsyncSession,
     user: User,
@@ -124,43 +110,16 @@ async def process_agent_message(
     await add_message(db, conversation, "user", user_content)
 
     history = await get_conversation_messages(db, conversation.id, user.id, limit=20)
-    lc_messages = []
-    for msg in history:
-        if msg.role == "user":
-            lc_messages.append(HumanMessage(content=msg.content))
-        elif msg.role == "agent":
-            lc_messages.append(AIMessage(content=msg.content))
+    agent_result = await run_agent(
+        db=db,
+        user=user,
+        conversation_id=conversation.id,
+        messages=history,
+    )
 
-    initial_state: AgentState = {
-        "messages": lc_messages,
-        "user_id": user.id,
-        "conversation_id": conversation.id,
-        "db": db,
-        "memory": {},
-        "task_state": None,
-    }
-    result = await agent_graph.ainvoke(initial_state)
-
-    final_messages = result["messages"]
-    agent_reply = ""
-    for msg in reversed(final_messages):
-        if isinstance(msg, AIMessage) and msg.content:
-            agent_reply = msg.content
-            break
-
-    if not agent_reply:
-        agent_reply = "抱歉，我暂时无法处理您的请求，请稍后再试。"
-
-    await add_message(db, conversation, "agent", agent_reply)
-
-    task_state = result.get("task_state")
-    if isinstance(task_state, TaskState):
-        await save_task_state(db, conversation.id, user.id, task_state)
-    elif isinstance(task_state, dict):
-        await save_task_state(db, conversation.id, user.id, TaskState.model_validate(task_state))
-    else:
-        await save_task_state(db, conversation.id, user.id, _build_default_task_state(user.id))
+    await add_message(db, conversation, "agent", agent_result.reply)
+    await save_task_state(db, conversation.id, user.id, agent_result.task_state)
 
     asyncio.create_task(save_memory_background(conversation.id, user.id))
 
-    return agent_reply
+    return agent_result.reply

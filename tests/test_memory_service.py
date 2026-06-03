@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.agent.confidence import calculate_confidence
-from app.agent.task_state import NextAction, TaskIntent, TaskStage, TaskState, TaskStatus
+from app.agent.core.confidence import calculate_confidence
+from app.agent.schemas.task_state import NextAction, TaskIntent, TaskStage, TaskState, TaskStatus
 from app.services.memory_service import (
     _load_memory_content,
     _load_recent_messages,

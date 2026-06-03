@@ -36,6 +36,10 @@ class AgentState(TypedDict):
     task_state
         当前轮 Agent 生成的结构化任务状态，由 graph 返回给 service 层统一落库。
 
+    tool_call_count
+        当前 Agent 轮次已经执行的工具数量。用于把“每轮最多调用一次工具”
+        从 prompt 约束升级为代码约束。
+
     记忆类型说明:
         - summary: LLM 压缩的会话摘要
         - task_state: 当前任务状态（JSON 字符串）
@@ -48,3 +52,4 @@ class AgentState(TypedDict):
     db: Any
     memory: dict
     task_state: Any
+    tool_call_count: int

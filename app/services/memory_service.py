@@ -17,7 +17,7 @@ from openai import AsyncOpenAI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.task_state import TaskState
+from app.agent.schemas.task_state import TaskState
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.errors import CONVERSATION_NOT_FOUND
