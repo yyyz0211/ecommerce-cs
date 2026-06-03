@@ -138,7 +138,11 @@ async def _load_recent_messages(
     """
     result = await db.execute(
         select(Message)
-        .where(Message.conversation_id == conversation_id)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .where(
+            Message.conversation_id == conversation_id,
+            Conversation.user_id == user_id,
+        )
         .order_by(Message.created_at.asc(), Message.id.asc())
     )
     return result.scalars().all()
@@ -149,9 +153,12 @@ async def _load_memory_content(
 ) -> str:
     """读取指定类型的记忆内容，不存在则返回空字符串"""
     result = await db.execute(
-        select(ConversationMemory).where(
+        select(ConversationMemory)
+        .join(Conversation, ConversationMemory.conversation_id == Conversation.id)
+        .where(
             ConversationMemory.conversation_id == conversation_id,
             ConversationMemory.memory_type == memory_type,
+            Conversation.user_id == user_id,
         )
     )
     memory = result.scalar_one_or_none()
@@ -224,6 +231,5 @@ async def _summarize_memory(
         # 压缩失败返回空，save_memory_background 会跳过写入，
         # 旧摘要保持不变
         return ""
-
 
 

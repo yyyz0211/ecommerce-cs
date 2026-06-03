@@ -13,6 +13,14 @@ from app.services.memory_service import (
 )
 
 
+def _setup_async_session(mock_session_factory):
+    """Return the db object yielded by a mocked AsyncSessionLocal."""
+    mock_db = MagicMock()
+    mock_session_factory.return_value.__aenter__ = AsyncMock(return_value=mock_db)
+    mock_session_factory.return_value.__aexit__ = AsyncMock(return_value=None)
+    return mock_db
+
+
 class TestLoadMemoryContent:
     """测试记忆内容读取"""
 
@@ -82,6 +90,8 @@ class TestSaveMemoryBackground:
              patch("app.services.memory_service._summarize_memory") as mock_summarize, \
              patch("app.services.memory_service.save_conversation_memory") as mock_save:
 
+            _setup_async_session(mock_session_factory)
+
             await save_memory_background(1, 7)
 
             mock_summarize.assert_not_called()
@@ -97,8 +107,7 @@ class TestSaveMemoryBackground:
              patch("app.services.memory_service._summarize_memory", return_value="新摘要"), \
              patch("app.services.memory_service.save_conversation_memory") as mock_save:
 
-            mock_ctx = AsyncMock()
-            mock_session_factory.return_value.__aenter__.return_value = mock_ctx
+            mock_ctx = _setup_async_session(mock_session_factory)
 
             await save_memory_background(1, 7)
 
@@ -110,10 +119,12 @@ class TestSaveMemoryBackground:
     async def test_does_not_save_when_compression_returns_empty(self):
         """压缩失败（返回空字符串）时不写入，旧摘要保持不变"""
         msg = MagicMock()
-        with patch("app.services.memory_service.AsyncSessionLocal"), \
+        with patch("app.services.memory_service.AsyncSessionLocal") as mock_session_factory, \
              patch("app.services.memory_service._load_recent_messages", return_value=[msg]), \
              patch("app.services.memory_service._summarize_memory", return_value=""), \
              patch("app.services.memory_service.save_conversation_memory") as mock_save:
+
+            _setup_async_session(mock_session_factory)
 
             await save_memory_background(1, 7)
 

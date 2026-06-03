@@ -41,20 +41,14 @@ def submit_after_sale(order_id: str, type_: str, reason: str) -> str:
 async def _resolve_order_id(db: AsyncSession, user_id: int, raw: str):
     """
     将 LLM 传来的 order_id 字符串解析为数据库数字 ID。
-    先尝试 int() 直接转数字；失败则按订单号 (order_no) 模糊查库。
+    优先按订单号 (order_no) 查找；找不到时再尝试按数据库数字 ID 查找。
     返回 (order_id, error_message)，二选一非 None。
     """
     raw = raw.strip() if raw else ""
     if not raw:
         return None, "错误：订单 ID 为空，请提供有效的订单 ID 或订单号"
 
-    # 优先尝试纯数字 ID
-    try:
-        return int(raw), None
-    except ValueError:
-        pass
-
-    # 按订单号查找（用户的订单）
+    # 订单号可能是纯数字（例如 202605280001），所以必须先按 order_no 查。
     result = await db.execute(
         select(Order).where(Order.order_no == raw, Order.user_id == user_id)
     )
@@ -62,7 +56,19 @@ async def _resolve_order_id(db: AsyncSession, user_id: int, raw: str):
     if order:
         return order.id, None
 
-    return None, f"错误：未找到订单 {raw}（该订单号不存在或不属于当前用户）"
+    try:
+        order_id = int(raw)
+    except ValueError:
+        return None, f"错误：未找到订单 {raw}（该订单号不存在或不属于当前用户）"
+
+    result = await db.execute(
+        select(Order).where(Order.id == order_id, Order.user_id == user_id)
+    )
+    order = result.scalar_one_or_none()
+    if order:
+        return order.id, None
+
+    return None, f"错误：未找到订单 {raw}（该订单 ID/订单号不存在或不属于当前用户）"
 
 
 # ── 工具执行器——由 graph 的 execute_tool_node 调用 ──
