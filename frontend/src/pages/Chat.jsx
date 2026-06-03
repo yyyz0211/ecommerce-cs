@@ -133,53 +133,93 @@ export default function Chat() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f8f9fb' }}>
-      {/* ── 顶部导航栏 ── */}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#f0f2f5' }}>
+      {/* ── Chatwoot 风格对话框 ── */}
       <div style={{
-        background: '#fff', borderBottom: '1px solid #e5e7eb',
-        padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        height: 48, flexShrink: 0,
+        flex: 1, display: 'flex', flexDirection: 'column',
+        maxWidth: 480, width: '100%', margin: '0 auto',
+        overflow: 'hidden',
+        background: '#fff',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>智能客服</span>
+        {/* 头部 — Chatwoot 标志性的深色 header */}
+        <div style={{
+          padding: '14px 20px',
+          background: 'linear-gradient(135deg, #1f93ff 0%, #1665c0 100%)',
+          display: 'flex', alignItems: 'center', gap: 12,
+          flexShrink: 0,
+        }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.2)', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 15, fontWeight: 700,
+          }}>AI</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>智能客服</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4cff8d', display: 'inline-block' }} />
+              在线 · 通常几分钟内回复
+            </div>
+          </div>
+          {/* 快捷导航 */}
+          <span onClick={() => navigate('/orders')} style={{ cursor: 'pointer', fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>订单</span>
+          <span onClick={() => navigate('/after-sales')} style={{ cursor: 'pointer', fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>售后</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{ fontSize: 13, color: '#666' }}>{user?.username}</span>
-          <span onClick={() => navigate('/orders')} style={{ cursor: 'pointer', fontSize: 12, color: '#999' }}>订单</span>
-          <span onClick={() => navigate('/after-sales')} style={{ cursor: 'pointer', fontSize: 12, color: '#999' }}>售后</span>
-          <span onClick={() => navigate('/profile')} style={{ cursor: 'pointer', fontSize: 12, color: '#999' }}>我的</span>
-          <span onClick={() => { logoutUser(); navigate('/login'); }} style={{ cursor: 'pointer', fontSize: 12, color: '#999' }}>退出</span>
-        </div>
-      </div>
 
-      {/* ── 聊天内容区 ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: 900, width: '100%', margin: '0 auto' }}>
         {loading ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: 14 }}>
             加载中...
           </div>
         ) : (
           <>
-            <div className="chat-messages">
+            {/* 消息区 */}
+            <div style={{
+              flex: 1, overflowY: 'auto',
+              padding: '16px 16px 8px',
+              display: 'flex', flexDirection: 'column', gap: 8,
+              background: '#fff',
+            }}>
               {messages.map((msg, i) => (
-                <div key={i}>
-                  {msg.role === 'agent' && (i === 0 || messages[i - 1].role !== 'agent') && (
-                    <div style={{ fontSize: 11, color: '#999', fontWeight: 600, marginBottom: 4, paddingLeft: 4 }}>智能客服</div>
+                <div key={i} style={{
+                  display: 'flex', flexDirection: 'column',
+                  alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                }}>
+                  {/* 同角色连续消息不重复显示头像 */}
+                  {(i === 0 || messages[i - 1].role !== msg.role) && msg.role === 'agent' && (
+                    <div style={{
+                      width: 26, height: 26, borderRadius: '50%',
+                      background: '#1f93ff', color: '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 10, fontWeight: 700,
+                      marginBottom: 3, marginLeft: 2,
+                    }}>AI</div>
                   )}
-                  <div className={`msg msg-${msg.role}`} style={{
-                    marginLeft: msg.role === 'agent' ? 36 : undefined,
-                    marginTop: i > 0 && messages[i - 1].role === msg.role ? 2 : undefined,
+                  <div style={{
+                    maxWidth: '80%',
+                    padding: '10px 14px',
+                    fontSize: 14, lineHeight: 1.5,
+                    borderRadius: msg.role === 'user' ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+                    background: msg.role === 'user' ? '#1f93ff' : '#f1f3f5',
+                    color: msg.role === 'user' ? '#fff' : '#1a1a1a',
+                    wordBreak: 'break-word',
                   }}>
                     {msg.role === 'agent'
                       ? <span dangerouslySetInnerHTML={{ __html: renderContent(msg.content) }} />
                       : msg.content
                     }
                   </div>
-                  {msg.role === 'user' && <div style={{ textAlign: 'right', fontSize: 11, color: '#999', paddingRight: 4 }}>{formatTime(msg.time)}</div>}
+                  <div style={{
+                    fontSize: 10, color: '#b0b0b0',
+                    marginTop: 2,
+                    paddingLeft: msg.role === 'agent' ? 28 : 0,
+                    paddingRight: msg.role === 'agent' ? 0 : 8,
+                  }}>
+                    {formatTime(msg.time)}
+                  </div>
                 </div>
               ))}
               {sending && (
-                <div style={{ display: 'flex', gap: 4, padding: '8px 0', alignSelf: 'flex-start', marginLeft: 36 }}>
+                <div style={{ display: 'flex', gap: 4, padding: '8px 0', alignSelf: 'flex-start' }}>
                   <span style={{ width: 6, height: 6, background: '#c4c4c4', borderRadius: '50%', animation: 'typingBounce 1.4s infinite' }} />
                   <span style={{ width: 6, height: 6, background: '#c4c4c4', borderRadius: '50%', animation: 'typingBounce 1.4s infinite 0.16s' }} />
                   <span style={{ width: 6, height: 6, background: '#c4c4c4', borderRadius: '50%', animation: 'typingBounce 1.4s infinite 0.32s' }} />
@@ -188,20 +228,57 @@ export default function Chat() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="chat-input-wrapper" style={{ padding: '12px 32px 28px' }}>
-              <div className="chat-input-area">
+            {/* 输入区 */}
+            <div style={{
+              padding: '8px 16px 16px',
+              borderTop: '1px solid #f0f0f0',
+              flexShrink: 0,
+              background: '#fff',
+            }}>
+              <div style={{
+                display: 'flex', gap: 8, alignItems: 'flex-end',
+                background: '#f5f7fa', borderRadius: 12,
+                padding: '6px 8px 6px 16px',
+                border: '1px solid #e8eaed',
+              }}>
                 <textarea
                   ref={inputRef}
                   value={inputValue}
                   onChange={e => { setInputValue(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'; }}
                   onKeyDown={handleKeyDown}
-                  placeholder="输入消息...（Enter 发送，Shift+Enter 换行）"
+                  placeholder="输入消息..."
                   disabled={sending}
                   rows={1}
+                  style={{
+                    flex: 1, border: 'none', outline: 'none',
+                    fontSize: 14, fontFamily: 'inherit',
+                    background: 'transparent', color: '#1a1a1a',
+                    resize: 'none', minHeight: 22, maxHeight: 100,
+                    lineHeight: 1.5, padding: 0,
+                  }}
                 />
-                <button className="btn-send" onClick={handleSend} disabled={sending || !inputValue.trim()}>
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8L15 1L8 15L7 9L1 8Z" fill="white" stroke="white" strokeWidth="1.5" strokeLinejoin="round" /></svg>
+                <button
+                  onClick={handleSend}
+                  disabled={sending || !inputValue.trim()}
+                  style={{
+                    width: 34, height: 34, minWidth: 34, borderRadius: '50%',
+                    background: sending || !inputValue.trim() ? '#d4d8dd' : '#1f93ff',
+                    border: 'none', cursor: sending || !inputValue.trim() ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'background 0.15s',
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <path d="M1 8L15 1L8 15L7 9L1 8Z" fill="white" stroke="white" strokeWidth="1.5" strokeLinejoin="round" />
+                  </svg>
                 </button>
+              </div>
+              {/* 底部导航 */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 10 }}>
+                <span style={{ fontSize: 11, color: '#bbb', cursor: 'pointer' }} onClick={() => navigate('/orders')}>我的订单</span>
+                <span style={{ fontSize: 11, color: '#bbb', cursor: 'pointer' }} onClick={() => navigate('/after-sales')}>售后记录</span>
+                <span style={{ fontSize: 11, color: '#bbb', cursor: 'pointer' }} onClick={() => navigate('/profile')}>{user?.username}</span>
+                <span style={{ fontSize: 11, color: '#bbb', cursor: 'pointer' }} onClick={() => { logoutUser(); navigate('/login'); }}>退出</span>
               </div>
             </div>
           </>
@@ -214,6 +291,10 @@ export default function Chat() {
         th { background: #f5f7fa; font-weight: 600; color: #555; }
         td { color: #333; }
         strong { color: #222; }
+        @keyframes typingBounce {
+          0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+          40% { transform: scale(1); opacity: 1; }
+        }
       `}</style>
     </div>
   );
