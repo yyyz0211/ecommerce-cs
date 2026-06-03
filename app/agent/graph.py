@@ -7,11 +7,6 @@
                                                                       │
                                             ←─────────────────────────┘
                                               (回到 call_llm 继续)
-
-设计要点:
-- 使用原生 AsyncOpenAI（兼容 DeepSeek），而非 LangChain 的 ChatOpenAI
-- LangChain @tool 装饰器仅用于生成 OpenAI function-calling schema
-- db session 显式放在 AgentState 中，避免 ContextVar 隐式传参
 """
 
 import json
@@ -25,6 +20,15 @@ from app.config import settings
 from app.logger import agent_logger
 from app.agent.state import AgentState
 from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.confidence import calculate_confidence
+from app.agent.task_state import (
+    MemoryType,
+    NextAction,
+    TaskIntent,
+    TaskStage,
+    TaskState,
+    TaskStatus,
+)
 from app.agent.tools import AGENT_TOOLS, execute_tool
 
 # DeepSeek 兼容 OpenAI SDK，只需设置 base_url
@@ -35,7 +39,9 @@ client = AsyncOpenAI(
 
 
 def _tools_for_llm():
-    """把 LangChain @tool 转为 OpenAI SDK 需要的 tools 格式"""
+    """将 LangChain 工具转成 OpenAI SDK 可直接消费的 schema。
+
+    这里保持和工具定义完全一致，避免人工维护两份参数结构。"""
     return [
         {
             "type": "function",
@@ -49,10 +55,37 @@ def _tools_for_llm():
     ]
 
 
-# ── 节点 0: 加载记忆 ──
+def _format_memory_for_prompt(memory: dict) -> str:
+    """按记忆类型分层拼装 prompt，避免把不同语义的记忆混成一段。"""
+    sections = []
+
+    summary = memory.get(MemoryType.SUMMARY.value)
+    if summary:
+        sections.append(f"[会话摘要]\n{summary}")
+
+    task_state = memory.get(MemoryType.TASK_STATE.value)
+    if task_state:
+        try:
+            task_state_text = json.dumps(json.loads(task_state), ensure_ascii=False, indent=2)
+        except (TypeError, json.JSONDecodeError):
+            task_state_text = str(task_state)
+        sections.append(f"[当前任务状态]\n{task_state_text}")
+
+    preference = memory.get(MemoryType.PREFERENCE.value)
+    if preference:
+        sections.append(f"[用户偏好]\n{preference}")
+
+    fact = memory.get(MemoryType.FACT.value)
+    if fact:
+        sections.append(f"[已知事实]\n{fact}")
+
+    return "\n\n".join(sections)
+
 
 async def load_memory_node(state: AgentState) -> dict:
-    """从 DB 加载会话记忆到 state.memory（只读快照，图内不再修改）"""
+    """从 DB 加载会话记忆到 state.memory。
+
+    记忆在图内只读，不在这里做写入；写入由 services 层统一处理。"""
     from app.services.memory_service import get_conversation_memory
 
     db = state["db"]
@@ -69,10 +102,9 @@ async def load_memory_node(state: AgentState) -> dict:
 # ── 节点 1: 调用 LLM ──
 
 async def call_llm_node(state: AgentState) -> dict:
-    """把当前消息列表发给 LLM，获取回复或工具调用指令"""
-    # 构建消息列表：System prompt（含用户上下文 + 记忆）+ 历史消息
+    """把当前消息列表发给 LLM，获取回复或工具调用指令。"""
     memory = state.get("memory", {})
-    memory_text = "\n".join(f"- {k}: {v}" for k, v in memory.items()) if memory else ""
+    memory_text = _format_memory_for_prompt(memory) if memory else ""
     if memory_text:
         system_content = f"{SYSTEM_PROMPT}\n\n[会话记忆]\n{memory_text}\n\n当前用户 ID：{state['user_id']}。"
     else:
@@ -83,7 +115,7 @@ async def call_llm_node(state: AgentState) -> dict:
             api_messages.append({"role": "user", "content": msg.content})
         elif isinstance(msg, AIMessage):
             entry = {"role": "assistant", "content": msg.content or ""}
-            # 如果 AIMessage 有 tool_calls，必须传给 API，否则后续 ToolMessage 会报错
+            # tool_calls 必须原样传回去，否则后面的 ToolMessage 无法被模型正确关联
             if msg.tool_calls:
                 entry["tool_calls"] = [
                     {
@@ -110,7 +142,8 @@ async def call_llm_node(state: AgentState) -> dict:
         tool_names = [tc.function.name for tc in ai_msg.tool_calls]
         agent_logger.info(f"LLM 决定调工具: {tool_names}")
     else:
-        agent_logger.info(f"LLM 回复: {ai_msg.content[:80]}...")
+        # 纯文本回复时记录首段内容，方便排查模型输出是否异常
+        agent_logger.info(f"LLM 回复: {(ai_msg.content or '')[:80]}...")
 
     # 如果 LLM 要求调工具，构建 tool_calls 格式
     if ai_msg.tool_calls:
@@ -124,14 +157,15 @@ async def call_llm_node(state: AgentState) -> dict:
         ]
         return {"messages": [AIMessage(content=ai_msg.content or "", tool_calls=lc_tool_calls)]}
 
-    # 无工具调用 → 直接文本回复
-    return {"messages": [AIMessage(content=ai_msg.content)]}
-
+    return {
+        "messages": [AIMessage(content=ai_msg.content or "")],
+        "task_state": _build_task_state(state),
+    }
 
 # ── 路由判断: 继续执行工具还是结束 ──
 
 def should_continue(state: AgentState) -> Literal["execute_tool", END]:
-    """检查最后一条 AI 消息是否有 tool_calls"""
+    """如果最后一条 AI 消息带有 tool_calls，就继续执行工具。"""
     last_msg = state["messages"][-1]
     if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
         return "execute_tool"
@@ -141,7 +175,7 @@ def should_continue(state: AgentState) -> Literal["execute_tool", END]:
 # ── 节点 2: 执行工具 ──
 
 async def execute_tool_node(state: AgentState) -> dict:
-    """执行 LLM 请求的工具，将结果追加到消息列表"""
+    """执行 LLM 请求的工具，将结果追加到消息列表。"""
     last_msg = state["messages"][-1]
     db = state["db"]
     user_id = state["user_id"]
@@ -155,15 +189,82 @@ async def execute_tool_node(state: AgentState) -> dict:
             db=db,
             user_id=user_id,
         )
+        # 工具返回内容只记录前缀，避免日志被大段响应撑爆
         agent_logger.info(f"工具结果: {result[:80]}...")
         tool_messages.append(ToolMessage(content=result, tool_call_id=tc["id"]))
 
     return {"messages": tool_messages}
 
 
-# ── 构建图 ──
+def _build_task_state(state: AgentState) -> TaskState:
+    """根据当前消息与工具执行情况，生成一个保底的结构化任务状态。
+
+    这是过渡逻辑：优先保证 task_state 始终可落库，再逐步演进到更细的状态推断。"""
+    last_user_message = ""
+    for msg in reversed(state.get("messages", [])):
+        if isinstance(msg, HumanMessage):
+            last_user_message = msg.content
+            break
+
+    tool_names = []
+    tool_results = []
+    for msg in state.get("messages", []):
+        if isinstance(msg, AIMessage) and msg.tool_calls:
+            tool_names.extend(tc["name"] for tc in msg.tool_calls)
+        elif isinstance(msg, ToolMessage):
+            tool_results.append(msg.content or "")
+
+    has_tool_error = any(result.startswith("错误") for result in tool_results)
+    if has_tool_error:
+        stage = TaskStage.FAILED
+        intent = TaskIntent.OTHER
+        next_action = NextAction.REPLY_USER
+        task_status = TaskStatus.ERROR
+    elif "submit_after_sale" in tool_names:
+        stage = TaskStage.COMPLETED
+        intent = TaskIntent.SUBMIT_AFTER_SALE
+        next_action = NextAction.REPLY_USER
+        task_status = TaskStatus.DONE
+    elif "query_logistics" in tool_names:
+        stage = TaskStage.COMPLETED
+        intent = TaskIntent.QUERY_LOGISTICS
+        next_action = NextAction.REPLY_USER
+        task_status = TaskStatus.DONE
+    elif "query_order_detail" in tool_names or "query_orders" in tool_names:
+        stage = TaskStage.COMPLETED
+        intent = TaskIntent.QUERY_ORDER_STATUS
+        next_action = NextAction.REPLY_USER
+        task_status = TaskStatus.DONE
+    elif "订单" in last_user_message or "物流" in last_user_message:
+        stage = TaskStage.AWAITING_ORDER_ID
+        intent = TaskIntent.QUERY_LOGISTICS if "物流" in last_user_message else TaskIntent.QUERY_ORDER_STATUS
+        next_action = NextAction.ASK_USER_FOR_ORDER_ID
+        task_status = TaskStatus.PENDING
+    else:
+        stage = TaskStage.NEW
+        intent = TaskIntent.OTHER
+        next_action = NextAction.REPLY_USER
+        task_status = TaskStatus.PENDING
+
+    # 过渡阶段先用规则/上下文得到一个保底分，后续可以继续接入模型概率与规则分数
+    confidence = calculate_confidence(
+        model_prob=0.5,
+        rule_score=0.5 if tool_names else 0.3,
+        context_score=0.8 if last_user_message else 0.2,
+    )
+
+    return TaskState(
+        stage=stage,
+        intent=intent,
+        status=task_status,
+        customer_id=state["user_id"],
+        confidence=confidence,
+        next_action=next_action,
+    )
+
 
 def build_agent_graph() -> StateGraph:
+    """构建并编译 LangGraph。"""
     workflow = StateGraph(AgentState)
 
     workflow.add_node("load_memory", load_memory_node)
@@ -178,7 +279,7 @@ def build_agent_graph() -> StateGraph:
         should_continue,
         {"execute_tool": "execute_tool", END: END},
     )
-    workflow.add_edge("execute_tool", "call_llm")  # 工具执行完回到 LLM 再生成回复
+    workflow.add_edge("execute_tool", "call_llm")
 
     return workflow.compile()
 

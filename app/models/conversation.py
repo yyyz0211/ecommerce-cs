@@ -1,11 +1,14 @@
 """对话相关模型：会话、消息、转人工记录、会话记忆"""
 
 from datetime import datetime
+from typing import Literal
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+
+MemoryTypeLiteral = Literal["summary", "task_state", "fact", "preference"]
 
 
 class Conversation(Base):
@@ -48,6 +51,9 @@ class ConversationMemory(Base):
     """会话记忆（摘要、偏好、事实、任务状态等）"""
 
     __tablename__ = "conversation_memories"
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "memory_type", name="uq_conversation_memory_type"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     conversation_id: Mapped[int] = mapped_column(
@@ -56,7 +62,7 @@ class ConversationMemory(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"), nullable=False, index=True, comment="用户 ID"
     )
-    memory_type: Mapped[str] = mapped_column(
+    memory_type: Mapped[MemoryTypeLiteral] = mapped_column(
         String(20), nullable=False, index=True, comment="summary / preference / fact / task_state"
     )
     content: Mapped[str] = mapped_column(Text, nullable=False, comment="记忆内容")

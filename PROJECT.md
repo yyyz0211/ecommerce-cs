@@ -382,12 +382,158 @@ Agent 回复"已转接人工客服，请稍候，会尽快为您处理"
 - [ ] 自定义 Tool：提交售后申请
 - [ ] LangGraph 多轮对话编排
 - [ ] 意图识别 + 工具调用
+- [ ] task_state 结构设计
+- [ ] next_action 规则表 + LLM 可选覆盖策略
 
 ### Phase 4：对话 API + 完善
 - [ ] 转人工占位机制
 - [ ] Agent 回复流接入 POST /api/chat/message
 - [ ] 对话记录入库（Agent 消息）
 - [ ] 边界情况处理（意图不明确、API 调用失败等）
+
+---
+
+## Phase 3.5：task_state 结构设计
+
+### 设计目标
+
+`task_state` 用于在多轮对话中记录**当前任务的流程状态**，让 Agent 能够：
+
+- 知道对话进行到哪一步
+- 判断下一步应该做什么
+- 在上下文压缩后仍能恢复关键业务参数（订单号、售后类型等）
+
+### 推荐结构
+
+```json
+{
+  "version": 1,
+  "stage": "awaiting_order_id",
+  "intent": "query_logistics",
+  "status": "in_progress",
+  "order_id": null,
+  "customer_id": null,
+  "confidence": 0.92,
+  "next_action": "ask_user_for_order_id",
+  "updated_at": "2026-06-03T14:52:00+08:00"
+}
+```
+
+### 字段说明
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `version` | int | Schema 版本号，方便后续升级兼容 |
+| `stage` | str | 当前对话阶段（见下方枚举） |
+| `intent` | str | 识别到的用户意图（见下方枚举） |
+| `status` | str | 任务整体状态（见下方枚举） |
+| `order_id` | int/null | 业务关键字段：当前关联的订单 ID |
+| `customer_id` | int/null | 用户 ID（可省略，与 user_id 重复） |
+| `confidence` | float | 综合置信度，0.0 ~ 1.0 |
+| `next_action` | str | 下一步系统应该做什么（见下方枚举） |
+| `updated_at` | str | ISO 8601 时间戳 |
+
+### 推荐枚举值
+
+#### `stage`（对话阶段）
+
+| 值 | 说明 |
+|---|---|
+| `new` | 新对话，未开始任务 |
+| `awaiting_order_id` | 等待用户提供订单号 |
+| `awaiting_confirmation` | 等待用户确认信息 |
+| `processing` | 正在处理（调用 API 中） |
+| `completed` | 任务已完成 |
+| `failed` | 任务失败 |
+
+#### `intent`（用户意图）
+
+| 值 | 说明 |
+|---|---|
+| `query_order_status` | 查询订单状态 |
+| `query_logistics` | 查询物流信息 |
+| `query_after_sale` | 查询售后进度 |
+| `submit_after_sale` | 提交售后申请 |
+| `cancel_order` | 取消订单 |
+| `transfer_human` | 转人工 |
+| `other` | 其他/未识别 |
+
+#### `status`（任务状态）
+
+| 值 | 说明 |
+|---|---|
+| `pending` | 待处理 |
+| `in_progress` | 进行中 |
+| `done` | 已完成 |
+| `error` | 异常/失败 |
+
+#### `next_action`（下一步动作）
+
+| 值 | 说明 |
+|---|---|
+| `ask_user_for_order_id` | 让用户提供订单号 |
+| `confirm_user_intent` | 确认用户意图 |
+| `call_backend_api` | 调用后端 API |
+| `reply_user` | 回复用户 |
+| `transfer_to_human` | 转人工 |
+| `stop` | 结束对话 |
+
+### confidence 设计原则
+
+`confidence` 是一个**综合置信度**，建议由模型分数、规则命中、上下文完整度共同决定。
+
+#### 计算策略
+
+```
+final_confidence = 模型概率 × 0.4 + 规则命中 × 0.3 + 上下文完整度 × 0.3
+```
+
+#### 使用建议
+
+| confidence 范围 | 系统行为 |
+|----------------|----------|
+| >= 0.85 | 可直接执行，无需确认 |
+| 0.6 ~ 0.85 | 先确认，再执行 |
+| < 0.6 | 走兜底逻辑或转人工 |
+
+> **注**：如果你的意图种类少、业务流程简单，可以先不加 `confidence`，关键分支靠 `stage` / `intent` / `tool_calls` 足够支撑。
+
+### 落地到代码
+
+`task_state` 当前存在：
+
+1. **conversation_memories 表**：`memory_type = "task_state"`，`content` 存 JSON 字符串
+2. **唯一性边界**：同一会话同一 `memory_type` 只保留一条，使用 `conversation_id + memory_type` 约束
+3. **保存时机**：
+   - Agent 每次回复后更新
+   - 关键节点（拿到 order_id、提交售后成功等）
+4. **读取时机**：
+   - Agent 每次处理消息时从 DB 加载
+   - 用于恢复上下文、决定下一步
+
+#### 示例存储格式
+
+```python
+task_state = {
+    "version": 1,
+    "stage": "completed",
+    "intent": "query_logistics",
+    "status": "done",
+    "order_id": 12345,
+    "confidence": 0.95,
+    "next_action": "reply_user",
+    "updated_at": "2026-06-03T14:52:00+08:00"
+}
+```
+
+#### 与现有代码的衔接
+
+当前实现已将 `task_state` 接入 LangGraph 返回值：
+
+- `graph._build_task_state()` 根据工具调用和工具结果生成结构化状态
+- `chat_service.process_agent_message()` 从 graph 结果读取状态
+- `memory_service.save_task_state()` 统一序列化并落库
+- `graph._format_memory_for_prompt()` 按 `summary / task_state / preference / fact` 分层注入系统提示词
 
 ### Phase 4.5：RAG 知识库
 
@@ -490,6 +636,6 @@ pytest
 
 ---
 
-> 文档版本：v0.3
-> 最后更新：2026-05-29
-> 下一步：Phase 3 Agent 对话
+> 文档版本：v0.4
+> 最后更新：2026-06-03
+> 下一步：Phase 3 Agent 对话 → task_state 结构设计（已完成）

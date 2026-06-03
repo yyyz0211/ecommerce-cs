@@ -3,7 +3,7 @@
 AgentState 在图的每个节点之间传递，每个节点返回一个 dict，
 LangGraph 根据字段的 Annotated reducer 决定如何合并更新:
   - messages: add_messages → 追加到列表末尾
-  - user_id / conversation_id / db / memory: 无 reducer → 直接覆盖
+  - user_id / conversation_id / db / memory / task_state: 无 reducer → 直接覆盖
 """
 
 from typing import TypedDict, Annotated, Any
@@ -33,6 +33,9 @@ class AgentState(TypedDict):
         图内节点不再修改它——写入由 process_agent_message 的后台任务异步执行。
         字段无 Annotated reducer → 每次更新是全量覆盖。
 
+    task_state
+        当前轮 Agent 生成的结构化任务状态，由 graph 返回给 service 层统一落库。
+
     记忆类型说明:
         - summary: LLM 压缩的会话摘要
         - task_state: 当前任务状态（JSON 字符串）
@@ -44,3 +47,4 @@ class AgentState(TypedDict):
     conversation_id: int
     db: Any
     memory: dict
+    task_state: Any
