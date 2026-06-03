@@ -188,8 +188,8 @@ async def _summarize_memory(
 
     设计要点:
     - 只取最近 10 条消息，每条截断到 200 字符 → 控制 token 消耗
-    - temperature=0.3 → 保证摘要稳定可预测
-    - max_tokens=200 → 强制简洁输出
+    - temperature=0.1 → 保证摘要稳定可预测
+    - max_tokens=500 → 强制简洁输出
     - 失败返回空字符串 → 不影响主流程，旧摘要保持不变
     """
     recent = messages[-10:]
@@ -197,7 +197,7 @@ async def _summarize_memory(
     for m in recent:
         role_label = "用户" if m.role == "user" else "客服"
         # 截断过长内容，避免摘要上下文过长
-        content = m.content[:200] + "..." if len(m.content) > 200 else m.content
+        content = m.content[:500] + "..." if len(m.content) > 500 else m.content
         dialogue_lines.append(f"{role_label}: {content}")
     dialogue_text = "\n".join(dialogue_lines)
 
@@ -216,8 +216,8 @@ async def _summarize_memory(
                 {"role": "system", "content": _COMPRESSION_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=0.3,   # 低温度保证摘要稳定，不每次变样
-            max_tokens=200,    # 限制输出长度，强制简洁
+            temperature=0.1,   # 低温度保证摘要稳定，不每次变样
+            max_tokens=500,    # 限制输出长度，强制简洁
         )
         return response.choices[0].message.content.strip()
     except Exception:

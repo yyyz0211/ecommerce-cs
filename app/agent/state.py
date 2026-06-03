@@ -3,10 +3,10 @@
 AgentState 在图的每个节点之间传递，每个节点返回一个 dict，
 LangGraph 根据字段的 Annotated reducer 决定如何合并更新:
   - messages: add_messages → 追加到列表末尾
-  - user_id / conversation_id / memory: 无 reducer → 直接覆盖
+  - user_id / conversation_id / db / memory: 无 reducer → 直接覆盖
 """
 
-from typing import TypedDict, Annotated
+from typing import TypedDict, Annotated, Any
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
@@ -22,13 +22,25 @@ class AgentState(TypedDict):
     user_id / conversation_id
         来自 JWT 和路由层，图内节点只读不写。
 
+    db
+        AsyncSession 实例，由 chat_service.process_agent_message 在调用图之前注入。
+        图内所有节点通过 state["db"] 获取，避免 ContextVar 隐式传参。
+        注意：db 不参与状态持久化，仅在图执行期间有效。
+
     memory
         会话记忆快照（dict，key 为 memory_type，value 为 content）。
         load_memory 节点从 DB 加载后写入，call_llm 注入 system prompt。
         图内节点不再修改它——写入由 process_agent_message 的后台任务异步执行。
         字段无 Annotated reducer → 每次更新是全量覆盖。
+
+    记忆类型说明:
+        - summary: LLM 压缩的会话摘要
+        - task_state: 当前任务状态（JSON 字符串）
+        - preference: 用户偏好
+        - fact: 用户事实信息
     """
     messages: Annotated[list[BaseMessage], add_messages]
     user_id: int
     conversation_id: int
+    db: Any
     memory: dict

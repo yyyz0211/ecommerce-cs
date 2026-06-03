@@ -11,27 +11,21 @@
 设计要点:
 - 使用原生 AsyncOpenAI（兼容 DeepSeek），而非 LangChain 的 ChatOpenAI
 - LangChain @tool 装饰器仅用于生成 OpenAI function-calling schema
-- db session 通过 ContextVar 注入各节点，避免 State 持有一个无法序列化的 db 对象
+- db session 显式放在 AgentState 中，避免 ContextVar 隐式传参
 """
 
 import json
-from contextvars import ContextVar
 from typing import Literal
 
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from langgraph.graph import StateGraph, END
 from openai import AsyncOpenAI
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.logger import agent_logger
 from app.agent.state import AgentState
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.tools import AGENT_TOOLS, execute_tool
-
-# ContextVar 是协程局部变量，每个请求的 db session 独立存储。
-# 比 threading.local 更适合 async 场景——同一线程可能同时跑多个协程。
-_db_context: ContextVar[AsyncSession] = ContextVar("db")
 
 # DeepSeek 兼容 OpenAI SDK，只需设置 base_url
 client = AsyncOpenAI(
@@ -59,10 +53,9 @@ def _tools_for_llm():
 
 async def load_memory_node(state: AgentState) -> dict:
     """从 DB 加载会话记忆到 state.memory（只读快照，图内不再修改）"""
-    # 延迟导入避免循环依赖（chat_service → graph → memory_service）
     from app.services.memory_service import get_conversation_memory
 
-    db = _db_context.get()
+    db = state["db"]
     memories = await get_conversation_memory(db, state["conversation_id"], state["user_id"])
     memory: dict = {}
     for m in memories:
@@ -150,7 +143,7 @@ def should_continue(state: AgentState) -> Literal["execute_tool", END]:
 async def execute_tool_node(state: AgentState) -> dict:
     """执行 LLM 请求的工具，将结果追加到消息列表"""
     last_msg = state["messages"][-1]
-    db = _db_context.get()       # 从 ContextVar 取 db
+    db = state["db"]
     user_id = state["user_id"]
 
     tool_messages = []

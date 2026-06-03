@@ -8,7 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.graph import _db_context, agent_graph
+from app.agent.graph import agent_graph
 from app.agent.state import AgentState
 from app.errors import CONVERSATION_NOT_FOUND
 from app.models.conversation import Conversation, Message
@@ -138,14 +138,14 @@ async def process_agent_message(
         elif msg.role == "agent":
             lc_messages.append(AIMessage(content=msg.content))
 
-    # 3. 跑 Agent（db 通过 ContextVar 注入 Graph 节点）
+    # 3. 跑 Agent
     initial_state: AgentState = {
         "messages": lc_messages,
         "user_id": user.id,
         "conversation_id": conversation.id,
-        "memory": {},  # load_memory 节点会从 DB 填充
+        "db": db,
+        "memory": {},
     }
-    _db_context.set(db)
     result = await agent_graph.ainvoke(initial_state)
 
     # 4. 提取 Agent 回复 + 结构化 task_state
