@@ -14,49 +14,63 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
 
   async function handleSave() {
-    setError(''); setSuccess('');
+    setError('');
+    setSuccess('');
     try {
       setLoading(true);
       await updateMyInfo({ phone: phone || null, default_address: address || null });
       const token = localStorage.getItem('token');
       if (token) await loginUser(token);
-      setEditing(false); setSuccess('保存成功');
-    } catch(e) { setError(e.message); }
-    finally { setLoading(false); }
+      setEditing(false);
+      setSuccess('保存成功');
+    } catch(e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <div style={{maxWidth:600,margin:'0 auto',padding:20}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
-        <div style={{display:'flex',alignItems:'center',gap:16}}>
-          <span onClick={()=>navigate('/chat')} style={{cursor:'pointer',fontSize:13,color:'#1f93ff'}}>← 返回对话</span>
-          <h2 style={{fontSize:20,fontWeight:700}}>个人信息</h2>
-        </div>
-        <button className="btn btn-sm btn-secondary" onClick={()=>{logoutUser();navigate('/login')}}>退出</button>
-      </div>
+    <div className="app-page">
+      <div className="app-shell narrow">
+        <header className="app-page-header">
+          <button className="back-link" onClick={() => navigate('/chat')}>返回对话</button>
+          <div className="page-heading">
+            <p>Profile</p>
+            <h1>个人信息</h1>
+          </div>
+          <button className="btn btn-sm btn-secondary" onClick={() => { logoutUser(); navigate('/login'); }}>退出</button>
+        </header>
 
-      {error && <div className="error-msg">{error}</div>}
-      {success && <div className="success-msg">{success}</div>}
+        {error && <div className="error-msg">{error}</div>}
+        {success && <div className="success-msg">{success}</div>}
 
-      <div className="card">
-        {editing ? (
-          <div>
-            <div className="form-group"><label>手机号</label><input type="text" value={phone} onChange={e=>setPhone(e.target.value)} /></div>
-            <div className="form-group"><label>收货地址</label><input type="text" value={address} onChange={e=>setAddress(e.target.value)} /></div>
-            <div className="flex-between gap-2">
-              <button className="btn btn-primary" onClick={handleSave} disabled={loading}>{loading?'保存中...':'保存'}</button>
-              <button className="btn btn-secondary" onClick={()=>{setEditing(false);setPhone(user?.phone||'');setAddress(user?.default_address||'');setError('')}}>取消</button>
+        <section className="soft-card profile-card">
+          <div className="profile-avatar">{(user?.username || 'U').slice(0, 1).toUpperCase()}</div>
+          <h2>{user?.username}</h2>
+          <p>{user?.phone || '未设置手机号'}</p>
+
+          {editing ? (
+            <div className="profile-edit">
+              <div className="form-group"><label>手机号</label><input type="text" value={phone} onChange={e => setPhone(e.target.value)} /></div>
+              <div className="form-group"><label>收货地址</label><input type="text" value={address} onChange={e => setAddress(e.target.value)} /></div>
+              <div className="profile-actions">
+                <button className="btn btn-primary" onClick={handleSave} disabled={loading}>{loading ? '保存中...' : '保存'}</button>
+                <button className="btn btn-secondary" onClick={() => { setEditing(false); setPhone(user?.phone || ''); setAddress(user?.default_address || ''); setError(''); }}>取消</button>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div style={{fontSize:14,lineHeight:2.2}}>
-            <div className="profile-info-row"><span className="profile-label">用户名</span><span>{user?.username}</span></div>
-            <div className="profile-info-row"><span className="profile-label">手机号</span><span>{user?.phone||'未设置'}</span></div>
-            <div className="profile-info-row"><span className="profile-label">地址</span><span>{user?.default_address||'未设置'}</span></div>
-            <div className="profile-info-row"><span className="profile-label">注册时间</span><span>{user?.created_at?new Date(user.created_at).toLocaleString():'-'}</span></div>
-            <button className="btn btn-sm btn-primary mt-3" onClick={()=>setEditing(true)}>编辑资料</button>
-          </div>
-        )}
+          ) : (
+            <>
+              <div className="profile-info-list">
+                <div><span>用户名</span><strong>{user?.username}</strong></div>
+                <div><span>手机号</span><strong>{user?.phone || '未设置'}</strong></div>
+                <div><span>地址</span><strong>{user?.default_address || '未设置'}</strong></div>
+                <div><span>注册时间</span><strong>{user?.created_at ? new Date(user.created_at).toLocaleString() : '-'}</strong></div>
+              </div>
+              <button className="btn btn-primary mt-3" onClick={() => setEditing(true)}>编辑资料</button>
+            </>
+          )}
+        </section>
       </div>
     </div>
   );
