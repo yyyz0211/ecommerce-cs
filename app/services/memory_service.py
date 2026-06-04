@@ -15,8 +15,8 @@ import json
 from typing import Optional
 
 from openai import AsyncOpenAI
-from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import func, select
+from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -76,27 +76,14 @@ async def save_conversation_memory(
     if not result.scalar_one_or_none():
         raise CONVERSATION_NOT_FOUND
 
-    stmt = (
-        insert(ConversationMemory)
-        .values(
+    try:
+        memory = await _upsert_conversation_memory(
+            db=db,
             conversation_id=conversation_id,
             user_id=user_id,
             memory_type=memory_type,
             content=content,
         )
-        .on_conflict_do_update(
-            constraint="uq_conversation_memory_type",
-            set_={
-                "content": content,
-                "user_id": user_id,
-            },
-        )
-        .returning(ConversationMemory)
-    )
-
-    try:
-        result = await db.execute(stmt)
-        memory = result.scalar_one()
         await db.commit()
         return memory
     except IntegrityError:
@@ -107,6 +94,38 @@ async def save_conversation_memory(
             memory_type,
         )
         raise
+
+
+async def _upsert_conversation_memory(
+    *,
+    db: AsyncSession,
+    conversation_id: int,
+    user_id: int,
+    memory_type: str,
+    content: str,
+) -> ConversationMemory:
+    values = {
+        "conversation_id": conversation_id,
+        "user_id": user_id,
+        "memory_type": memory_type,
+        "content": content,
+    }
+
+    stmt = mysql_insert(ConversationMemory).values(**values)
+    stmt = stmt.on_duplicate_key_update(
+        content=content,
+        user_id=user_id,
+        updated_at=func.now(),
+    )
+    await db.execute(stmt)
+
+    result = await db.execute(
+        select(ConversationMemory).where(
+            ConversationMemory.conversation_id == conversation_id,
+            ConversationMemory.memory_type == memory_type,
+        )
+    )
+    return result.scalar_one()
 
 
 async def save_task_state(
@@ -187,16 +206,21 @@ async def save_memory_background(
 async def _load_recent_messages(
     db: AsyncSession, conversation_id: int, user_id: int,
 ) -> list[Message]:
-    """加载会话全部消息，供摘要压缩使用。
-
-    这里做全量读是为了让摘要生成器掌握完整上下文，再在内部截断到最近 10 条。"""
-    result = await db.execute(
-        select(Message)
+    """加载最近 10 条消息，按时间正序返回，供摘要压缩使用。"""
+    recent_ids = (
+        select(Message.id)
         .join(Conversation, Message.conversation_id == Conversation.id)
         .where(
             Message.conversation_id == conversation_id,
             Conversation.user_id == user_id,
         )
+        .order_by(Message.created_at.desc(), Message.id.desc())
+        .limit(10)
+        .subquery()
+    )
+    result = await db.execute(
+        select(Message)
+        .where(Message.id.in_(select(recent_ids.c.id)))
         .order_by(Message.created_at.asc(), Message.id.asc())
     )
     return result.scalars().all()
@@ -245,9 +269,9 @@ async def _summarize_memory(
 ) -> str:
     """把旧摘要与最近对话合并成新摘要。
 
-    只截取最近 10 条消息，避免 prompt 无限增长。"""
+    `messages` 由 `_load_recent_messages` 控制数量，避免 prompt 无限增长。"""
     lines = []
-    for m in messages[-10:]:
+    for m in messages:
         role = "用户" if m.role == "user" else "客服"
         lines.append(f"{role}: {m.content}")
     new_dialogue = "\n".join(lines)

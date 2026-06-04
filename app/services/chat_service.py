@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.core.runtime import run_agent
 from app.errors import CONVERSATION_NOT_FOUND
+from app.logger import agent_logger
 from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.services.memory_service import save_memory_background, save_task_state
@@ -118,7 +119,14 @@ async def process_agent_message(
     )
 
     await add_message(db, conversation, "agent", agent_result.reply)
-    await save_task_state(db, conversation.id, user.id, agent_result.task_state)
+    try:
+        await save_task_state(db, conversation.id, user.id, agent_result.task_state)
+    except Exception:
+        agent_logger.exception(
+            "主链路保存 task_state 失败，将交由后台任务兜底: conversation_id=%s user_id=%s",
+            conversation.id,
+            user.id,
+        )
 
     asyncio.create_task(
         save_memory_background(

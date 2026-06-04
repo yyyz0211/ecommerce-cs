@@ -10,7 +10,7 @@
 """
 
 import json
-from typing import Literal
+from typing import Literal, Optional
 
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from langgraph.graph import StateGraph, END
@@ -24,11 +24,20 @@ from app.agent.core.state_machine import reduce_task_state
 from app.agent.schemas.task_state import MemoryType
 from app.agent.tools import AGENT_TOOLS, execute_tool
 
-# DeepSeek 兼容 OpenAI SDK，只需设置 base_url
-client = AsyncOpenAI(
-    api_key=settings.OPENAI_API_KEY,
-    base_url=settings.OPENAI_BASE_URL,
-)
+_client: Optional[AsyncOpenAI] = None
+_agent_graph = None
+
+
+def get_openai_client() -> AsyncOpenAI:
+    """延迟创建 LLM client，避免 import 阶段依赖配置完整性。"""
+    global _client
+    if _client is None:
+        # DeepSeek 兼容 OpenAI SDK，只需设置 base_url
+        _client = AsyncOpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            base_url=settings.OPENAI_BASE_URL,
+        )
+    return _client
 
 
 def _tools_for_llm():
@@ -41,7 +50,7 @@ def _tools_for_llm():
             "function": {
                 "name": t.name,
                 "description": t.description,
-                "parameters": t.args_schema.schema() if t.args_schema else {},
+                "parameters": t.args_schema.model_json_schema() if t.args_schema else {},
             },
         }
         for t in AGENT_TOOLS
@@ -155,7 +164,7 @@ async def call_llm_node(state: AgentState) -> dict:
         elif isinstance(msg, ToolMessage):
             api_messages.append({"role": "tool", "content": msg.content, "tool_call_id": msg.tool_call_id})
 
-    response = await client.chat.completions.create(
+    response = await get_openai_client().chat.completions.create(
         model=settings.LLM_MODEL,
         messages=api_messages,
         tools=_tools_for_llm(),
@@ -258,5 +267,9 @@ def build_agent_graph() -> StateGraph:
     return workflow.compile()
 
 
-# 全局单例
-agent_graph = build_agent_graph()
+def get_agent_graph():
+    """延迟构建 LangGraph，降低导入模块时的配置/依赖耦合。"""
+    global _agent_graph
+    if _agent_graph is None:
+        _agent_graph = build_agent_graph()
+    return _agent_graph

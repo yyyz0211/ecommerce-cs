@@ -74,6 +74,9 @@ class TestLoadRecentMessages:
         result = await _load_recent_messages(db, 1, 7)
 
         assert len(result) == 2
+        stmt = db.execute.await_args.args[0]
+        compiled = str(stmt.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIMIT 10" in compiled
 
     @pytest.mark.asyncio
     async def test_returns_empty_list(self):
@@ -95,13 +98,6 @@ class TestTaskStateSerialization:
     async def test_save_task_state_serializes_json(self):
         db = AsyncMock()
         mock_conversation = MagicMock()
-        mock_memory = MagicMock()
-        conversation_result = MagicMock()
-        conversation_result.scalar_one_or_none.return_value = mock_conversation
-        memory_result = MagicMock()
-        memory_result.scalars.return_value.all.return_value = [mock_memory]
-        db.execute.side_effect = [conversation_result, memory_result]
-
         state = TaskState(
             stage=TaskStage.PROCESSING,
             intent=TaskIntent.QUERY_LOGISTICS,
@@ -109,6 +105,14 @@ class TestTaskStateSerialization:
             confidence=0.9,
             next_action=NextAction.CALL_BACKEND_API,
         )
+        mock_memory = MagicMock()
+        mock_memory.content = state.model_dump_json()
+        conversation_result = MagicMock()
+        conversation_result.scalar_one_or_none.return_value = mock_conversation
+        insert_result = MagicMock()
+        memory_result = MagicMock()
+        memory_result.scalar_one.return_value = mock_memory
+        db.execute.side_effect = [conversation_result, insert_result, memory_result]
 
         await save_task_state(db, 1, 7, state)
 
@@ -121,16 +125,16 @@ class TestTaskStateSerialization:
         assert db.commit.called
 
     @pytest.mark.asyncio
-    async def test_save_task_state_removes_duplicate_memories(self):
+    async def test_save_task_state_uses_upsert(self):
         db = AsyncMock()
         mock_conversation = MagicMock()
-        newest_memory = MagicMock()
-        old_memory = MagicMock()
+        saved_memory = MagicMock()
         conversation_result = MagicMock()
         conversation_result.scalar_one_or_none.return_value = mock_conversation
-        memory_result = MagicMock()
-        memory_result.scalars.return_value.all.return_value = [newest_memory, old_memory]
-        db.execute.side_effect = [conversation_result, memory_result]
+        insert_result = MagicMock()
+        select_result = MagicMock()
+        select_result.scalar_one.return_value = saved_memory
+        db.execute.side_effect = [conversation_result, insert_result, select_result]
 
         state = TaskState(
             stage=TaskStage.COMPLETED,
@@ -140,10 +144,10 @@ class TestTaskStateSerialization:
             next_action=NextAction.REPLY_USER,
         )
 
-        await save_task_state(db, 1, 7, state)
+        result = await save_task_state(db, 1, 7, state)
 
-        assert json.loads(newest_memory.content)["stage"] == "completed"
-        db.delete.assert_awaited_once_with(old_memory)
+        assert result == saved_memory
+        assert db.execute.await_count == 3
         assert db.commit.called
 
     def test_parse_task_state_round_trip(self):

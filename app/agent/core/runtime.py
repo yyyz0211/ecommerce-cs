@@ -8,7 +8,7 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, HumanMessage
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.core.graph import agent_graph
+from app.agent.core.graph import get_agent_graph
 from app.agent.schemas.results import AgentResult, parse_tool_calls_from_messages
 from app.agent.schemas.state import AgentState
 from app.agent.schemas.task_state import NextAction, TaskIntent, TaskStage, TaskState, TaskStatus
@@ -43,7 +43,7 @@ async def run_agent(
         "memory": {},
         "task_state": None,
     }
-    result = await agent_graph.ainvoke(initial_state)
+    result = await get_agent_graph().ainvoke(initial_state)
     final_messages = result["messages"]
     task_state = _coerce_task_state(result.get("task_state"), user.id)
     tool_calls = parse_tool_calls_from_messages(final_messages)

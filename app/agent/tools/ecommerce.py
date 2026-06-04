@@ -33,9 +33,9 @@ def query_logistics(order_id: str) -> str:
 
 
 @tool
-def submit_after_sale(order_id: str, type_: str, reason: str) -> str:
+def submit_after_sale(order_id: str, sale_type: str, reason: str) -> str:
     """提交售后申请。order_id 可以是数字 ID 或订单号（如 202605280001）；
-    type_ 为 return/refund/exchange，reason 为申请原因。"""
+    sale_type 为 return/refund/exchange，reason 为申请原因。"""
     return "Tool must be executed with db context"
 
 
@@ -218,17 +218,17 @@ async def _execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_
         order_id, err = await _resolve_order_id(db, user_id, tool_args.get("order_id", ""))
         if err:
             return _tool_error(tool_name, err, TaskIntent.SUBMIT_AFTER_SALE)
-        type_ = tool_args.get("type_", "")
+        sale_type = tool_args.get("sale_type") or tool_args.get("type_") or tool_args.get("type") or ""
         reason = tool_args.get("reason", "")
-        if not type_ or type_ not in ("return", "refund", "exchange"):
+        if not sale_type or sale_type not in ("return", "refund", "exchange"):
             return _tool_error(
                 tool_name,
-                f"错误：无效的售后类型 {type_}，可选：return / refund / exchange",
+                f"错误：无效的售后类型 {sale_type}，可选：return / refund / exchange",
                 TaskIntent.SUBMIT_AFTER_SALE,
             )
         if not reason.strip():
             return _tool_error(tool_name, "错误：请提供售后原因", TaskIntent.SUBMIT_AFTER_SALE)
-        record = await create_after_sale(db, user_id, order_id, type_, reason)
+        record = await create_after_sale(db, user_id, order_id, sale_type, reason)
         message = (
             f"售后申请已提交！\n"
             f"  售后编号：{record.id}\n"

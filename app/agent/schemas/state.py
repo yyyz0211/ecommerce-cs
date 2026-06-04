@@ -6,9 +6,12 @@ LangGraph 根据字段的 Annotated reducer 决定如何合并更新:
   - user_id / conversation_id / db / memory / task_state: 无 reducer → 直接覆盖
 """
 
-from typing import TypedDict, Annotated, Any
+from typing import Annotated, Any, Optional, TypedDict
+
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
+
+from app.agent.schemas.task_state import TaskState
 
 
 class AgentState(TypedDict):
@@ -36,10 +39,6 @@ class AgentState(TypedDict):
     task_state
         当前轮 Agent 生成的结构化任务状态，由 graph 返回给 service 层统一落库。
 
-    tool_call_count
-        当前轮已经执行的工具数量。用于限制单轮最多执行一次工具，
-        这个约束主要是过渡期保护，后续如果要支持多步工具链路，需要调整这里和图路由逻辑。
-
     记忆类型说明:
         - summary: LLM 压缩的会话摘要
         - task_state: 当前任务状态（JSON 字符串）
@@ -51,5 +50,4 @@ class AgentState(TypedDict):
     conversation_id: int
     db: Any
     memory: dict
-    task_state: Any
-    tool_call_count: int
+    task_state: Optional[TaskState]

@@ -56,7 +56,7 @@ def reduce_task_state(
             status=TaskStatus.ERROR,
             order_id=_order_id_from_tool(latest_tool) or (old_state.order_id if old_state else None),
             customer_id=user_id,
-            heuristic_score=_heuristic_score(has_tool=True, has_user=bool(last_user_message), error=True),
+            confidence=_heuristic_score(has_tool=True, has_user=bool(last_user_message), error=True),
             next_action=NextAction.REPLY_USER,
         )
 
@@ -91,7 +91,7 @@ def reduce_task_state(
             status=TaskStatus.PENDING,
             order_id=old_state.order_id if old_state else None,
             customer_id=user_id,
-            heuristic_score=_heuristic_score(has_tool=False, has_user=True),
+            confidence=_heuristic_score(has_tool=False, has_user=True),
             next_action=NextAction.ASK_USER_FOR_ORDER_ID,
         )
 
@@ -101,7 +101,7 @@ def reduce_task_state(
         status=TaskStatus.PENDING,
         order_id=old_state.order_id if old_state else None,
         customer_id=user_id,
-        heuristic_score=_heuristic_score(has_tool=False, has_user=bool(last_user_message)),
+        confidence=_heuristic_score(has_tool=False, has_user=bool(last_user_message)),
         next_action=NextAction.REPLY_USER,
     )
 
