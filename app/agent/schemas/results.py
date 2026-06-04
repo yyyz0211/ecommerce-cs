@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+from langchain_core.messages import AIMessage, ToolMessage
 from pydantic import BaseModel, Field
 
 from app.agent.schemas.task_state import TaskState
@@ -63,6 +64,7 @@ class AgentResult(BaseModel):
     reply: str
     task_state: TaskState
     tool_calls: list[ToolCallRecord] = Field(default_factory=list)
+    tool_call_count: int = Field(ge=0)
     confidence: float = Field(ge=0.0, le=1.0)
     should_transfer: bool = False
 
@@ -71,7 +73,7 @@ def parse_tool_results_from_messages(messages: list[Any]) -> list[ToolResult]:
     """从 LangChain messages 中解析工具结果。"""
     results = []
     for msg in messages:
-        if msg.__class__.__name__ == "ToolMessage":
+        if isinstance(msg, ToolMessage):
             results.append(ToolResult.from_tool_message(msg.content or ""))
     return results
 
@@ -82,7 +84,7 @@ def parse_tool_calls_from_messages(messages: list[Any]) -> list[ToolCallRecord]:
     result_queue = parse_tool_results_from_messages(messages)
 
     for msg in messages:
-        if msg.__class__.__name__ == "AIMessage" and getattr(msg, "tool_calls", None):
+        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
             for tc in msg.tool_calls:
                 calls.append(
                     ToolCallRecord(

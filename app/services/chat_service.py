@@ -120,6 +120,12 @@ async def process_agent_message(
     await add_message(db, conversation, "agent", agent_result.reply)
     await save_task_state(db, conversation.id, user.id, agent_result.task_state)
 
-    asyncio.create_task(save_memory_background(conversation.id, user.id))
+    asyncio.create_task(
+        save_memory_background(
+            conversation.id,
+            user.id,
+            task_state=agent_result.task_state,
+        )
+    )
 
     return agent_result.reply

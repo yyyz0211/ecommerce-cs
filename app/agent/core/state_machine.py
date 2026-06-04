@@ -2,13 +2,17 @@
 
 这里把“怎么从当前轮上下文得到 task_state”的逻辑从 graph 中拆出来，
 让 graph 专注编排，让状态规则可以被单独测试和迭代。
+
+说明：当前 `TaskState.confidence` 字段承载的是启发式分数，
+由规则和上下文信号加权得到，不是校准后的真实概率。
 """
 
 from __future__ import annotations
 
 from langchain_core.messages import AIMessage, HumanMessage
+from typing import Optional
 
-from app.agent.core.confidence import calculate_confidence
+from app.agent.core.confidence import calculate_heuristic_score
 from app.agent.schemas.results import ToolResult, parse_tool_results_from_messages
 from app.agent.schemas.task_state import (
     NextAction,
@@ -30,9 +34,9 @@ _TOOL_INTENT_MAP = {
 def reduce_task_state(
     *,
     user_id: int,
-    old_state: TaskState | None = None,
-    messages: list | None = None,
-    tool_results: list[ToolResult] | None = None,
+    old_state: Optional[TaskState] = None,
+    messages: Optional[list] = None,
+    tool_results: Optional[list[ToolResult]] = None,
 ) -> TaskState:
     """根据旧状态、当前消息和工具结果生成新任务状态。"""
     messages = messages or []
@@ -52,7 +56,7 @@ def reduce_task_state(
             status=TaskStatus.ERROR,
             order_id=_order_id_from_tool(latest_tool) or (old_state.order_id if old_state else None),
             customer_id=user_id,
-            confidence=_confidence(has_tool=True, has_user=bool(last_user_message), error=True),
+            heuristic_score=_heuristic_score(has_tool=True, has_user=bool(last_user_message), error=True),
             next_action=NextAction.REPLY_USER,
         )
 
@@ -63,7 +67,7 @@ def reduce_task_state(
             status=TaskStatus.DONE,
             order_id=_order_id_from_tool(latest_tool) or (old_state.order_id if old_state else None),
             customer_id=user_id,
-            confidence=_confidence(has_tool=True, has_user=bool(last_user_message)),
+            confidence=_heuristic_score(has_tool=True, has_user=bool(last_user_message)),
             next_action=NextAction.REPLY_USER,
         )
 
@@ -75,7 +79,7 @@ def reduce_task_state(
             status=TaskStatus.IN_PROGRESS,
             order_id=old_state.order_id if old_state else None,
             customer_id=user_id,
-            confidence=_confidence(has_tool=True, has_user=bool(last_user_message)),
+            confidence=_heuristic_score(has_tool=True, has_user=bool(last_user_message)),
             next_action=NextAction.CALL_BACKEND_API,
         )
 
@@ -87,7 +91,7 @@ def reduce_task_state(
             status=TaskStatus.PENDING,
             order_id=old_state.order_id if old_state else None,
             customer_id=user_id,
-            confidence=_confidence(has_tool=False, has_user=True),
+            heuristic_score=_heuristic_score(has_tool=False, has_user=True),
             next_action=NextAction.ASK_USER_FOR_ORDER_ID,
         )
 
@@ -97,17 +101,17 @@ def reduce_task_state(
         status=TaskStatus.PENDING,
         order_id=old_state.order_id if old_state else None,
         customer_id=user_id,
-        confidence=_confidence(has_tool=False, has_user=bool(last_user_message)),
+        heuristic_score=_heuristic_score(has_tool=False, has_user=bool(last_user_message)),
         next_action=NextAction.REPLY_USER,
     )
 
 
-def _state_from_patch(user_id: int, old_state: TaskState | None, tool_result: ToolResult) -> TaskState:
+def _state_from_patch(user_id: int, old_state: Optional[TaskState], tool_result: ToolResult) -> TaskState:
     patch = dict(tool_result.task_patch or {})
     order_id = patch.pop("order_id", None) or _order_id_from_tool(tool_result)
-    confidence = patch.pop("confidence", None)
-    if confidence is None:
-        confidence = _confidence(has_tool=True, has_user=True, error=not tool_result.ok)
+    heuristic_score = patch.pop("confidence", None)
+    if heuristic_score is None:
+        heuristic_score = _heuristic_score(has_tool=True, has_user=True, error=not tool_result.ok)
 
     base = {
         "stage": TaskStage.COMPLETED if tool_result.ok else TaskStage.FAILED,
@@ -115,7 +119,7 @@ def _state_from_patch(user_id: int, old_state: TaskState | None, tool_result: To
         "status": TaskStatus.DONE if tool_result.ok else TaskStatus.ERROR,
         "order_id": order_id or (old_state.order_id if old_state else None),
         "customer_id": user_id,
-        "confidence": confidence,
+        "confidence": heuristic_score,
         "next_action": NextAction.REPLY_USER,
     }
     base.update(patch)
@@ -137,15 +141,15 @@ def _tool_names(messages: list) -> list[str]:
     return names
 
 
-def _intent_from_tool(tool_name: str | None) -> TaskIntent | None:
+def _intent_from_tool(tool_name: Optional[str]) -> Optional[TaskIntent]:
     return _TOOL_INTENT_MAP.get(tool_name or "")
 
 
-def _intent_from_old(old_state: TaskState | None) -> TaskIntent:
+def _intent_from_old(old_state: Optional[TaskState]) -> TaskIntent:
     return old_state.intent if old_state else TaskIntent.OTHER
 
 
-def _order_id_from_tool(tool_result: ToolResult) -> int | None:
+def _order_id_from_tool(tool_result: ToolResult) -> Optional[int]:
     if tool_result.data and isinstance(tool_result.data.get("order_id"), int):
         return tool_result.data["order_id"]
     if tool_result.task_patch and isinstance(tool_result.task_patch.get("order_id"), int):
@@ -153,9 +157,9 @@ def _order_id_from_tool(tool_result: ToolResult) -> int | None:
     return None
 
 
-def _confidence(*, has_tool: bool, has_user: bool, error: bool = False) -> float:
-    return calculate_confidence(
-        model_prob=0.4 if error else 0.5,
-        rule_score=0.7 if has_tool else 0.3,
-        context_score=0.8 if has_user else 0.2,
+def _heuristic_score(*, has_tool: bool, has_user: bool, error: bool = False) -> float:
+    return calculate_heuristic_score(
+        model_signal=0.4 if error else 0.5,
+        rule_signal=0.7 if has_tool else 0.3,
+        context_signal=0.8 if has_user else 0.2,
     )

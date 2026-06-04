@@ -20,17 +20,8 @@ from app.config import settings
 from app.logger import agent_logger
 from app.agent.schemas.state import AgentState
 from app.agent.prompts import SYSTEM_PROMPT
-from app.agent.core.confidence import calculate_confidence
-from app.agent.schemas.results import parse_tool_results_from_messages
 from app.agent.core.state_machine import reduce_task_state
-from app.agent.schemas.task_state import (
-    MemoryType,
-    NextAction,
-    TaskIntent,
-    TaskStage,
-    TaskState,
-    TaskStatus,
-)
+from app.agent.schemas.task_state import MemoryType
 from app.agent.tools import AGENT_TOOLS, execute_tool
 
 # DeepSeek 兼容 OpenAI SDK，只需设置 base_url
@@ -57,15 +48,28 @@ def _tools_for_llm():
     ]
 
 
-def _format_memory_for_prompt(memory: dict) -> str:
-    """按记忆类型分层拼装 prompt，避免把不同语义的记忆混成一段。"""
+def _format_memory_for_prompt(memory_map: dict) -> str:
+    """按记忆类型分层拼装 prompt，避免把不同语义的记忆混成一段。
+    提示词事例：
+        [会话摘要]
+        用户最近在查订单和物流。
+
+        [当前任务状态]
+        { }
+
+        [用户偏好]
+        用户希望简洁回答。
+
+        [已知事实]
+        用户的默认地址在上海。
+    """
     sections = []
 
-    summary = memory.get(MemoryType.SUMMARY.value)
+    summary = memory_map.get(MemoryType.SUMMARY.value)
     if summary:
         sections.append(f"[会话摘要]\n{summary}")
 
-    task_state = memory.get(MemoryType.TASK_STATE.value)
+    task_state = memory_map.get(MemoryType.TASK_STATE.value)
     if task_state:
         try:
             task_state_text = json.dumps(json.loads(task_state), ensure_ascii=False, indent=2)
@@ -73,11 +77,11 @@ def _format_memory_for_prompt(memory: dict) -> str:
             task_state_text = str(task_state)
         sections.append(f"[当前任务状态]\n{task_state_text}")
 
-    preference = memory.get(MemoryType.PREFERENCE.value)
+    preference = memory_map.get(MemoryType.PREFERENCE.value)
     if preference:
         sections.append(f"[用户偏好]\n{preference}")
 
-    fact = memory.get(MemoryType.FACT.value)
+    fact = memory_map.get(MemoryType.FACT.value)
     if fact:
         sections.append(f"[已知事实]\n{fact}")
 
@@ -92,21 +96,41 @@ async def load_memory_node(state: AgentState) -> dict:
 
     db = state["db"]
     memories = await get_conversation_memory(db, state["conversation_id"], state["user_id"])
-    memory: dict = {}
-    for m in memories:
-        if m.content:
-            memory[m.memory_type] = m.content
-    if memory:
-        agent_logger.info(f"加载记忆: {list(memory.keys())}")
-    return {"memory": memory}
+    memory_map: dict = {}
+    for item in memories:
+        if item.content:
+            memory_map[item.memory_type] = item.content
+    if memory_map:
+        agent_logger.info(f"加载记忆: {list(memory_map.keys())}")
+    return {"memory": memory_map}
 
 
 # ── 节点 1: 调用 LLM ──
 
 async def call_llm_node(state: AgentState) -> dict:
-    """把当前消息列表发给 LLM，获取回复或工具调用指令。"""
-    memory = state.get("memory", {})
-    memory_text = _format_memory_for_prompt(memory) if memory else ""
+    """把当前消息列表发给 LLM，获取回复或工具调用指令。
+    
+    提示词事例：
+        system:
+        {SYSTEM_PROMPT}
+
+        [会话记忆]
+        [会话摘要]
+        ...
+
+        [当前任务状态]
+        ...
+
+        [用户偏好]
+        ...
+
+        [已知事实]
+        ...
+
+        当前用户 ID：{state['user_id']}。
+    """
+    memory_map = state.get("memory", {})
+    memory_text = _format_memory_for_prompt(memory_map) if memory_map else ""
     if memory_text:
         system_content = f"{SYSTEM_PROMPT}\n\n[会话记忆]\n{memory_text}\n\n当前用户 ID：{state['user_id']}。"
     else:
@@ -131,14 +155,11 @@ async def call_llm_node(state: AgentState) -> dict:
         elif isinstance(msg, ToolMessage):
             api_messages.append({"role": "tool", "content": msg.content, "tool_call_id": msg.tool_call_id})
 
-    request_kwargs = {
-        "model": settings.LLM_MODEL,
-        "messages": api_messages,
-    }
-    if state.get("tool_call_count", 0) == 0:
-        request_kwargs["tools"] = _tools_for_llm()
-
-    response = await client.chat.completions.create(**request_kwargs)
+    response = await client.chat.completions.create(
+        model=settings.LLM_MODEL,
+        messages=api_messages,
+        tools=_tools_for_llm(),
+    )
 
     ai_msg = response.choices[0].message
 
@@ -146,37 +167,31 @@ async def call_llm_node(state: AgentState) -> dict:
     if ai_msg.tool_calls:
         tool_names = [tc.function.name for tc in ai_msg.tool_calls]
         agent_logger.info(f"LLM 决定调工具: {tool_names}")
-    else:
-        # 纯文本回复时记录首段内容，方便排查模型输出是否异常
-        agent_logger.info(f"LLM 回复: {(ai_msg.content or '')[:80]}...")
-
-    # 如果 LLM 要求调工具，构建 tool_calls 格式
-    if ai_msg.tool_calls:
-        tool_calls = list(ai_msg.tool_calls)
-        if len(tool_calls) > 1:
-            agent_logger.info(f"模型一次请求了 {len(tool_calls)} 个工具，仅执行第一个")
-            tool_calls = tool_calls[:1]
         lc_tool_calls = [
             {
                 "id": tc.id,
                 "name": tc.function.name,
                 "args": json.loads(tc.function.arguments),
             }
-            for tc in tool_calls
+            for tc in ai_msg.tool_calls
         ]
         return {"messages": [AIMessage(content=ai_msg.content or "", tool_calls=lc_tool_calls)]}
 
+    agent_logger.info(f"LLM 回复: {(ai_msg.content or '')[:80]}...")
+    next_messages = state["messages"] + [AIMessage(content=ai_msg.content or "")]
     return {
         "messages": [AIMessage(content=ai_msg.content or "")],
-        "task_state": _build_task_state(state),
+        "task_state": reduce_task_state(
+            user_id=state["user_id"],
+            old_state=state.get("task_state"),
+            messages=next_messages,
+        ),
     }
 
 # ── 路由判断: 继续执行工具还是结束 ──
 
 def should_continue(state: AgentState) -> Literal["execute_tool", END]:
     """如果最后一条 AI 消息带有 tool_calls，就继续执行工具。"""
-    if state.get("tool_call_count", 0) >= 1:
-        return END
     last_msg = state["messages"][-1]
     if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
         return "execute_tool"
@@ -186,17 +201,21 @@ def should_continue(state: AgentState) -> Literal["execute_tool", END]:
 # ── 节点 2: 执行工具 ──
 
 async def execute_tool_node(state: AgentState) -> dict:
-    """执行 LLM 请求的工具，将结果追加到消息列表。"""
+    """执行 LLM 请求的工具，将结果追加到消息列表。
+    
+    输入: state.messages[-1].tool_calls（LLM 请求的工具列表）
+    
+    循环处理每个 tool_call：
+    
+    工具执行: result = await execute_tool(tool_name, tool_args, db, user_id)
+    结果追加: tool_messages.append(ToolMessage(content=result.to_tool_message(), tool_call_id=tool_call.id))
+    """
     last_msg = state["messages"][-1]
     db = state["db"]
     user_id = state["user_id"]
 
     tool_messages = []
-    executed_count = 0
     for tc in last_msg.tool_calls:
-        if state.get("tool_call_count", 0) + executed_count >= 1:
-            agent_logger.info(f"跳过工具 {tc['name']}：当前轮已执行过工具")
-            continue
         agent_logger.info(f"执行工具: {tc['name']}({tc['args']})")
         result = await execute_tool(
             tool_name=tc["name"],
@@ -204,95 +223,18 @@ async def execute_tool_node(state: AgentState) -> dict:
             db=db,
             user_id=user_id,
         )
-        # 工具返回内容只记录前缀，避免日志被大段响应撑爆
         agent_logger.info(f"工具结果: {result.message_for_log(80)}...")
         tool_messages.append(ToolMessage(content=result.to_tool_message(), tool_call_id=tc["id"]))
-        executed_count += 1
 
+    next_messages = state["messages"] + tool_messages
     return {
         "messages": tool_messages,
-        "tool_call_count": state.get("tool_call_count", 0) + executed_count,
-    }
-
-
-def _build_task_state(state: AgentState) -> TaskState:
-    """根据当前消息与工具执行情况，生成一个保底的结构化任务状态。
-
-    这是过渡逻辑：优先保证 task_state 始终可落库，再逐步演进到更细的状态推断。"""
-    has_structured_tool_result = any(
-        isinstance(msg, ToolMessage) and (msg.content or "").strip().startswith("{")
-        for msg in state.get("messages", [])
-    )
-    if has_structured_tool_result:
-        parsed_results = parse_tool_results_from_messages(state.get("messages", []))
-        return reduce_task_state(
+        "task_state": reduce_task_state(
             user_id=state["user_id"],
             old_state=state.get("task_state"),
-            messages=state.get("messages", []),
-            tool_results=parsed_results,
-        )
-
-    last_user_message = ""
-    for msg in reversed(state.get("messages", [])):
-        if isinstance(msg, HumanMessage):
-            last_user_message = msg.content
-            break
-
-    tool_names = []
-    tool_results = []
-    for msg in state.get("messages", []):
-        if isinstance(msg, AIMessage) and msg.tool_calls:
-            tool_names.extend(tc["name"] for tc in msg.tool_calls)
-        elif isinstance(msg, ToolMessage):
-            tool_results.append(msg.content or "")
-
-    has_tool_error = any(result.startswith("错误") for result in tool_results)
-    if has_tool_error:
-        stage = TaskStage.FAILED
-        intent = TaskIntent.OTHER
-        next_action = NextAction.REPLY_USER
-        task_status = TaskStatus.ERROR
-    elif "submit_after_sale" in tool_names:
-        stage = TaskStage.COMPLETED
-        intent = TaskIntent.SUBMIT_AFTER_SALE
-        next_action = NextAction.REPLY_USER
-        task_status = TaskStatus.DONE
-    elif "query_logistics" in tool_names:
-        stage = TaskStage.COMPLETED
-        intent = TaskIntent.QUERY_LOGISTICS
-        next_action = NextAction.REPLY_USER
-        task_status = TaskStatus.DONE
-    elif "query_order_detail" in tool_names or "query_orders" in tool_names:
-        stage = TaskStage.COMPLETED
-        intent = TaskIntent.QUERY_ORDER_STATUS
-        next_action = NextAction.REPLY_USER
-        task_status = TaskStatus.DONE
-    elif "订单" in last_user_message or "物流" in last_user_message:
-        stage = TaskStage.AWAITING_ORDER_ID
-        intent = TaskIntent.QUERY_LOGISTICS if "物流" in last_user_message else TaskIntent.QUERY_ORDER_STATUS
-        next_action = NextAction.ASK_USER_FOR_ORDER_ID
-        task_status = TaskStatus.PENDING
-    else:
-        stage = TaskStage.NEW
-        intent = TaskIntent.OTHER
-        next_action = NextAction.REPLY_USER
-        task_status = TaskStatus.PENDING
-
-    # 过渡阶段先用规则/上下文得到一个保底分，后续可以继续接入模型概率与规则分数
-    confidence = calculate_confidence(
-        model_prob=0.5,
-        rule_score=0.5 if tool_names else 0.3,
-        context_score=0.8 if last_user_message else 0.2,
-    )
-
-    return TaskState(
-        stage=stage,
-        intent=intent,
-        status=task_status,
-        customer_id=state["user_id"],
-        confidence=confidence,
-        next_action=next_action,
-    )
+            messages=next_messages,
+        ),
+    }
 
 
 def build_agent_graph() -> StateGraph:

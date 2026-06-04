@@ -12,15 +12,19 @@
 from __future__ import annotations
 
 import json
+from typing import Optional
 
 from openai import AsyncOpenAI
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.schemas.task_state import TaskState
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.errors import CONVERSATION_NOT_FOUND
+from app.logger import agent_logger
 from app.models.conversation import Conversation, ConversationMemory, Message
 
 
@@ -72,33 +76,37 @@ async def save_conversation_memory(
     if not result.scalar_one_or_none():
         raise CONVERSATION_NOT_FOUND
 
-    result = await db.execute(
-        select(ConversationMemory)
-        .where(
-            ConversationMemory.conversation_id == conversation_id,
-            ConversationMemory.memory_type == memory_type,
-        )
-        .order_by(ConversationMemory.updated_at.desc(), ConversationMemory.id.desc())
-    )
-    memories = result.scalars().all()
-    memory = memories[0] if memories else None
-
-    if memory:
-        memory.content = content
-        for duplicate in memories[1:]:
-            await db.delete(duplicate)
-    else:
-        memory = ConversationMemory(
+    stmt = (
+        insert(ConversationMemory)
+        .values(
             conversation_id=conversation_id,
             user_id=user_id,
             memory_type=memory_type,
             content=content,
         )
-        db.add(memory)
+        .on_conflict_do_update(
+            constraint="uq_conversation_memory_type",
+            set_={
+                "content": content,
+                "user_id": user_id,
+            },
+        )
+        .returning(ConversationMemory)
+    )
 
-    await db.commit()
-    await db.refresh(memory)
-    return memory
+    try:
+        result = await db.execute(stmt)
+        memory = result.scalar_one()
+        await db.commit()
+        return memory
+    except IntegrityError:
+        await db.rollback()
+        agent_logger.exception(
+            "保存会话记忆冲突: conversation_id=%s memory_type=%s",
+            conversation_id,
+            memory_type,
+        )
+        raise
 
 
 async def save_task_state(
@@ -128,7 +136,11 @@ def parse_task_state(content: str) -> TaskState:
 
 # ── 后台记忆更新入口 ──
 
-async def save_memory_background(conversation_id: int, user_id: int):
+async def save_memory_background(
+    conversation_id: int,
+    user_id: int,
+    task_state: Optional[TaskState] = None,
+):
     """后台异步任务：生成并持久化会话记忆。
 
     由 chat_service.process_agent_message 通过 asyncio.create_task 触发，
@@ -136,11 +148,21 @@ async def save_memory_background(conversation_id: int, user_id: int):
 
     设计要点:
     - 用户回复已返回，此任务不阻塞主链路
-    - 失败静默丢弃，不影响用户体验
-    - summary 用 LLM 增量压缩，task_state 用纯规则提取
+    - 失败会记录日志，方便排查 summary / task_state 的落库问题
+    - summary 用 LLM 增量压缩，task_state 作为兜底持久化保障
     """
     try:
         async with AsyncSessionLocal() as db:
+            if task_state is not None:
+                try:
+                    await save_task_state(db, conversation_id, user_id, task_state)
+                except Exception:
+                    agent_logger.exception(
+                        "后台保存 task_state 失败: conversation_id=%s user_id=%s",
+                        conversation_id,
+                        user_id,
+                    )
+
             messages = await _load_recent_messages(db, conversation_id, user_id)
             if not messages:
                 return
@@ -153,7 +175,11 @@ async def save_memory_background(conversation_id: int, user_id: int):
                 )
 
     except Exception:
-        pass
+        agent_logger.exception(
+            "后台保存会话记忆失败: conversation_id=%s user_id=%s",
+            conversation_id,
+            user_id,
+        )
 
 
 # ── 内部辅助 ──
@@ -219,33 +245,22 @@ async def _summarize_memory(
 ) -> str:
     """把旧摘要与最近对话合并成新摘要。
 
-    这里先只喂最近 10 条消息，并对每条消息做截断，主要是控制 token 成本。"""
-    recent = messages[-10:]
-    dialogue_lines = []
-    for m in recent:
-        role_label = "用户" if m.role == "user" else "客服"
-        content = m.content[:500] + "..." if len(m.content) > 500 else m.content
-        dialogue_lines.append(f"{role_label}: {content}")
-    dialogue_text = "\n".join(dialogue_lines)
+    只截取最近 10 条消息，避免 prompt 无限增长。"""
+    lines = []
+    for m in messages[-10:]:
+        role = "用户" if m.role == "user" else "客服"
+        lines.append(f"{role}: {m.content}")
+    new_dialogue = "\n".join(lines)
 
-    user_prompt = f"[旧摘要]\n{old_summary or '（暂无）'}\n\n[最新对话]\n{dialogue_text}"
-
-    try:
-        client = AsyncOpenAI(
-            api_key=settings.LLM_SUMMARY_API_KEY,
-            base_url=settings.LLM_SUMMARY_BASE_URL,
-        )
-        response = await client.chat.completions.create(
-            model=settings.LLM_SUMMARY_MODEL,
-            messages=[
-                {"role": "system", "content": _COMPRESSION_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.1,
-            max_tokens=500,
-        )
-        summary = response.choices[0].message.content or ""
-        return summary.strip()
-    except Exception:
-        # 摘要失败不影响主流程，直接保留旧摘要
-        return ""
+    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL)
+    resp = await client.chat.completions.create(
+        model=settings.LLM_MODEL,
+        messages=[
+            {"role": "system", "content": _COMPRESSION_PROMPT},
+            {
+                "role": "user",
+                "content": f"旧摘要：\n{old_summary or '（无）'}\n\n新对话：\n{new_dialogue}",
+            },
+        ],
+    )
+    return (resp.choices[0].message.content or "").strip()

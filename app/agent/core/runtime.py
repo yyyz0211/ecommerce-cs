@@ -42,16 +42,17 @@ async def run_agent(
         "db": db,
         "memory": {},
         "task_state": None,
-        "tool_call_count": 0,
     }
     result = await agent_graph.ainvoke(initial_state)
     final_messages = result["messages"]
     task_state = _coerce_task_state(result.get("task_state"), user.id)
+    tool_calls = parse_tool_calls_from_messages(final_messages)
 
     return AgentResult(
         reply=_extract_agent_reply(final_messages),
         task_state=task_state,
-        tool_calls=parse_tool_calls_from_messages(final_messages),
+        tool_calls=tool_calls,
+        tool_call_count=len(tool_calls),
         confidence=task_state.confidence,
         should_transfer=task_state.intent == TaskIntent.TRANSFER_HUMAN,
     )

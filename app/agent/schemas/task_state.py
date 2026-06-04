@@ -76,6 +76,6 @@ class TaskState(BaseModel):
     status: TaskStatus
     order_id: Optional[int] = None
     customer_id: Optional[int] = None
-    confidence: float = Field(ge=0.0, le=1.0)
+    confidence: float = Field(ge=0.0, le=1.0, description="启发式分数，不代表模型真实概率")
     next_action: NextAction
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
