@@ -1,0 +1,46 @@
+{
+  "raw_records": 351,
+  "clean_records": 350,
+  "kb_candidate_records": 334,
+  "non_kb_records": 16,
+  "chunks": 385,
+  "by_category": {
+    "售后政策": 99,
+    "支付发票": 100,
+    "物流配送": 51,
+    "账户管理": 100
+  },
+  "kb_by_category": {
+    "售后政策": 98,
+    "支付发票": 99,
+    "物流配送": 51,
+    "账户管理": 86
+  },
+  "by_quality": {
+    "ok": 345,
+    "review": 5
+  },
+  "quality_flags": {
+    "removed_tail_date": 171,
+    "short_answer": 73,
+    "very_short_answer": 5,
+    "long_policy_text": 13
+  },
+  "exclude_reasons": {
+    "announcement_or_solicitation": 1,
+    "legal_or_agreement_text": 15,
+    "expired_policy": 8,
+    "historical_policy_snapshot": 9
+  },
+  "answer_chars": {
+    "min": 19,
+    "p50": 190,
+    "p90": 1230,
+    "max": 12156
+  },
+  "dedupe": {
+    "duplicate_url": 0,
+    "duplicate_question_answer": 0
+  },
+  "dropped_bad_records": 1
+}
