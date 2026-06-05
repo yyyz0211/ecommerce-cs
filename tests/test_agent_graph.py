@@ -3,9 +3,15 @@
 These tests cover deterministic graph helpers without calling the LLM.
 """
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from app.agent.core.graph import _format_memory_for_prompt
+from app.agent.core.graph import (
+    MAX_TOOL_ITERATIONS,
+    _format_memory_for_prompt,
+    finalize_tool_limit_node,
+    should_continue,
+)
 from app.agent.core.state_machine import reduce_task_state
 from app.agent.schemas.results import ToolResult
 from app.agent.schemas.task_state import TaskIntent, TaskStage, TaskStatus
@@ -18,6 +24,8 @@ def test_format_memory_for_prompt_groups_by_type():
             "task_state": '{"stage":"completed","intent":"query_logistics"}',
             "preference": "用户喜欢短信通知。",
             "fact": "用户是会员。",
+            "summary_cursor": "42",
+            "rule_cursor": "43",
         }
     )
 
@@ -26,6 +34,44 @@ def test_format_memory_for_prompt_groups_by_type():
     assert "[用户偏好]" in prompt
     assert "[已知事实]" in prompt
     assert '"intent": "query_logistics"' in prompt
+    assert "summary_cursor" not in prompt
+    assert "rule_cursor" not in prompt
+    assert "42" not in prompt
+    assert "43" not in prompt
+
+
+def test_should_continue_stops_at_tool_iteration_limit():
+    state = {
+        "messages": [
+            AIMessage(
+                content="",
+                tool_calls=[{"id": "call_1", "name": "query_orders", "args": {}}],
+            )
+        ],
+        "tool_iterations": MAX_TOOL_ITERATIONS,
+    }
+
+    assert should_continue(state) == "finalize_tool_limit"
+
+
+@pytest.mark.asyncio
+async def test_finalize_tool_limit_returns_user_visible_reply():
+    state = {
+        "messages": [
+            AIMessage(
+                content="",
+                tool_calls=[{"id": "call_1", "name": "query_orders", "args": {}}],
+            )
+        ],
+        "user_id": 7,
+        "task_state": None,
+    }
+
+    result = await finalize_tool_limit_node(state)
+
+    assert result["messages"][0].content
+    assert "工具步骤过多" in result["messages"][0].content
+    assert result["task_state"].status == TaskStatus.ERROR
 
 
 def test_reduce_task_state_marks_successful_logistics_query_done():

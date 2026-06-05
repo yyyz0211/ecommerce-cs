@@ -22,6 +22,10 @@ class MemoryType(str, Enum):
     FACT = "fact"
     # 预留给偏好类记忆
     PREFERENCE = "preference"
+    # summary 已压缩到的最新 message id，用于后台增量摘要
+    SUMMARY_CURSOR = "summary_cursor"
+    # 规则记忆已抽取到的最新 message id，用于避免重复扫描同一批消息
+    RULE_CURSOR = "rule_cursor"
 
 
 class TaskStage(str, Enum):

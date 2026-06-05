@@ -21,11 +21,12 @@ from app.logger import agent_logger
 from app.agent.schemas.state import AgentState
 from app.agent.prompts import SYSTEM_PROMPT
 from app.agent.core.state_machine import reduce_task_state
-from app.agent.schemas.task_state import MemoryType
+from app.agent.schemas.task_state import MemoryType, NextAction, TaskIntent, TaskStage, TaskState, TaskStatus
 from app.agent.tools import AGENT_TOOLS, execute_tool
 
 _client: Optional[AsyncOpenAI] = None
 _agent_graph = None
+MAX_TOOL_ITERATIONS = 4
 
 
 def get_openai_client() -> AsyncOpenAI:
@@ -199,10 +200,13 @@ async def call_llm_node(state: AgentState) -> dict:
 
 # ── 路由判断: 继续执行工具还是结束 ──
 
-def should_continue(state: AgentState) -> Literal["execute_tool", END]:
+def should_continue(state: AgentState) -> Literal["execute_tool", "finalize_tool_limit", END]:
     """如果最后一条 AI 消息带有 tool_calls，就继续执行工具。"""
     last_msg = state["messages"][-1]
     if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+        if state.get("tool_iterations", 0) >= MAX_TOOL_ITERATIONS:
+            agent_logger.warning("工具调用轮数达到上限，停止继续执行工具")
+            return "finalize_tool_limit"
         return "execute_tool"
     return END
 
@@ -238,12 +242,38 @@ async def execute_tool_node(state: AgentState) -> dict:
     next_messages = state["messages"] + tool_messages
     return {
         "messages": tool_messages,
+        "tool_iterations": state.get("tool_iterations", 0) + 1,
         "task_state": reduce_task_state(
             user_id=state["user_id"],
             old_state=state.get("task_state"),
             messages=next_messages,
         ),
     }
+
+
+async def finalize_tool_limit_node(state: AgentState) -> dict:
+    """工具循环达到上限时生成明确回复，避免以空 tool_call 消息结束。"""
+    reply = "抱歉，这次查询需要的工具步骤过多，我先暂停处理。请您换一种更具体的说法，或提供订单号后再试。"
+    old_state = state.get("task_state")
+    if isinstance(old_state, TaskState):
+        task_state = old_state.model_copy(
+            update={
+                "stage": TaskStage.FAILED,
+                "status": TaskStatus.ERROR,
+                "confidence": min(old_state.confidence, 0.5),
+                "next_action": NextAction.REPLY_USER,
+            }
+        )
+    else:
+        task_state = TaskState(
+            stage=TaskStage.FAILED,
+            intent=TaskIntent.OTHER,
+            status=TaskStatus.ERROR,
+            customer_id=state["user_id"],
+            confidence=0.5,
+            next_action=NextAction.REPLY_USER,
+        )
+    return {"messages": [AIMessage(content=reply)], "task_state": task_state}
 
 
 def build_agent_graph() -> StateGraph:
@@ -253,6 +283,7 @@ def build_agent_graph() -> StateGraph:
     workflow.add_node("load_memory", load_memory_node)
     workflow.add_node("call_llm", call_llm_node)
     workflow.add_node("execute_tool", execute_tool_node)
+    workflow.add_node("finalize_tool_limit", finalize_tool_limit_node)
 
     workflow.set_entry_point("load_memory")
     workflow.add_edge("load_memory", "call_llm")
@@ -260,9 +291,10 @@ def build_agent_graph() -> StateGraph:
     workflow.add_conditional_edges(
         "call_llm",
         should_continue,
-        {"execute_tool": "execute_tool", END: END},
+        {"execute_tool": "execute_tool", "finalize_tool_limit": "finalize_tool_limit", END: END},
     )
     workflow.add_edge("execute_tool", "call_llm")
+    workflow.add_edge("finalize_tool_limit", END)
 
     return workflow.compile()
 

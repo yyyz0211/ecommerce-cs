@@ -31,4 +31,6 @@ async def test_submit_after_sale_accepts_type_alias():
         )
 
     assert result.ok is True
+    assert result.data["type_label"] == "退款"
+    assert result.data["status_label"] == "待审核"
     mock_create.assert_awaited_once_with(db, 7, 18, "refund", "商品破损")

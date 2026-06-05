@@ -11,7 +11,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import re
 from typing import Optional
 
 from openai import AsyncOpenAI
@@ -20,7 +22,7 @@ from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.agent.schemas.task_state import TaskState
+from app.agent.schemas.task_state import MemoryType, TaskState
 from app.config import settings
 from app.database import AsyncSessionLocal
 from app.errors import CONVERSATION_NOT_FOUND
@@ -162,7 +164,7 @@ async def save_memory_background(
 ):
     """后台异步任务：生成并持久化会话记忆。
 
-    由 chat_service.process_agent_message 通过 asyncio.create_task 触发，
+    由 chat_service.process_agent_message 通过 schedule_background_task 触发，
     使用独立的 db session（AsyncSessionLocal），与主请求生命周期完全解耦。
 
     设计要点:
@@ -182,15 +184,32 @@ async def save_memory_background(
                         user_id,
                     )
 
-            messages = await _load_recent_messages(db, conversation_id, user_id)
+            rule_cursor = await _load_memory_content(
+                db, conversation_id, user_id, MemoryType.RULE_CURSOR.value
+            )
+            await _extract_rule_memories(
+                db, conversation_id, user_id, after_id=_parse_cursor(rule_cursor)
+            )
+
+            cursor = await _load_memory_content(
+                db, conversation_id, user_id, MemoryType.SUMMARY_CURSOR.value
+            )
+            messages = await _load_recent_messages(db, conversation_id, user_id, after_id=_parse_cursor(cursor))
             if not messages:
                 return
 
-            old_summary = await _load_memory_content(db, conversation_id, user_id, "summary")
+            old_summary = await _load_memory_content(db, conversation_id, user_id, MemoryType.SUMMARY.value)
             new_summary = await _summarize_memory(old_summary, messages)
             if new_summary:
                 await save_conversation_memory(
-                    db, conversation_id, user_id, "summary", new_summary,
+                    db, conversation_id, user_id, MemoryType.SUMMARY.value, new_summary,
+                )
+                await save_conversation_memory(
+                    db,
+                    conversation_id,
+                    user_id,
+                    MemoryType.SUMMARY_CURSOR.value,
+                    str(messages[-1].id),
                 )
 
     except Exception:
@@ -204,16 +223,30 @@ async def save_memory_background(
 # ── 内部辅助 ──
 
 async def _load_recent_messages(
-    db: AsyncSession, conversation_id: int, user_id: int,
+    db: AsyncSession, conversation_id: int, user_id: int, after_id: Optional[int] = None,
 ) -> list[Message]:
-    """加载最近 10 条消息，按时间正序返回，供摘要压缩使用。"""
+    """加载待压缩消息，按时间正序返回。
+
+    首次压缩没有 cursor 时取最近 10 条；已有 cursor 时读取 cursor 后的
+    全部新增消息，并按 id 正序交给摘要模型，保证增量摘要不跳过中间消息。
+    """
+    filters = [
+        Message.conversation_id == conversation_id,
+        Conversation.user_id == user_id,
+    ]
+    if after_id is not None:
+        result = await db.execute(
+            select(Message)
+            .join(Conversation, Message.conversation_id == Conversation.id)
+            .where(*filters, Message.id > after_id)
+            .order_by(Message.id.asc())
+        )
+        return result.scalars().all()
+
     recent_ids = (
         select(Message.id)
         .join(Conversation, Message.conversation_id == Conversation.id)
-        .where(
-            Message.conversation_id == conversation_id,
-            Conversation.user_id == user_id,
-        )
+        .where(*filters)
         .order_by(Message.created_at.desc(), Message.id.desc())
         .limit(10)
         .subquery()
@@ -224,6 +257,14 @@ async def _load_recent_messages(
         .order_by(Message.created_at.asc(), Message.id.asc())
     )
     return result.scalars().all()
+
+
+def _parse_cursor(value: str) -> Optional[int]:
+    try:
+        cursor = int(value)
+    except (TypeError, ValueError):
+        return None
+    return cursor if cursor > 0 else None
 
 
 async def _load_memory_content(
@@ -241,6 +282,79 @@ async def _load_memory_content(
     )
     memory = result.scalar_one_or_none()
     return memory.content if memory else ""
+
+
+async def _extract_rule_memories(
+    db: AsyncSession,
+    conversation_id: int,
+    user_id: int,
+    after_id: Optional[int] = None,
+) -> None:
+    messages = await _load_recent_messages(db, conversation_id, user_id, after_id=after_id)
+    if not messages:
+        return
+
+    preference = _extract_preference(messages)
+    if preference:
+        await save_conversation_memory(
+            db, conversation_id, user_id, MemoryType.PREFERENCE.value, preference
+        )
+
+    fact = _extract_fact(messages)
+    if fact:
+        await save_conversation_memory(
+            db, conversation_id, user_id, MemoryType.FACT.value, fact
+        )
+
+    await save_conversation_memory(
+        db,
+        conversation_id,
+        user_id,
+        MemoryType.RULE_CURSOR.value,
+        str(messages[-1].id),
+    )
+
+
+def _extract_preference(messages: list[Message]) -> str:
+    for message in reversed(messages):
+        if message.role != "user":
+            continue
+        content = message.content or ""
+        if any(keyword in content for keyword in ("简洁", "简短", "短一点", "少一点")):
+            return "用户希望回答简洁。"
+        if any(keyword in content for keyword in ("详细", "展开说", "多解释")):
+            return "用户希望回答更详细。"
+    return ""
+
+
+def _extract_fact(messages: list[Message]) -> str:
+    for message in reversed(messages):
+        if message.role != "user":
+            continue
+        content = message.content or ""
+        address_match = re.search(r"(?:默认地址|收货地址)(?:是|在|：|:)\s*([^。！？\\n]+)", content)
+        if address_match:
+            return f"用户的默认地址是{address_match.group(1).strip()}。"
+    return ""
+
+
+def schedule_background_task(coro, *, name: str) -> asyncio.Task:
+    started = asyncio.get_running_loop().time()
+    task = asyncio.create_task(coro, name=name)
+
+    def _log_result(done: asyncio.Task) -> None:
+        elapsed = asyncio.get_running_loop().time() - started
+        try:
+            done.result()
+        except asyncio.CancelledError:
+            agent_logger.warning("后台任务被取消: name=%s elapsed=%.3fs", name, elapsed)
+        except Exception:
+            agent_logger.exception("后台任务失败: name=%s elapsed=%.3fs", name, elapsed)
+        else:
+            agent_logger.info("后台任务完成: name=%s elapsed=%.3fs", name, elapsed)
+
+    task.add_done_callback(_log_result)
+    return task
 
 
 _COMPRESSION_PROMPT = """你是会话摘要生成器。你的任务是将旧摘要与新对话合并，输出一份简洁的压缩摘要。
@@ -276,9 +390,9 @@ async def _summarize_memory(
         lines.append(f"{role}: {m.content}")
     new_dialogue = "\n".join(lines)
 
-    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, base_url=settings.OPENAI_BASE_URL)
+    client = AsyncOpenAI(api_key=settings.LLM_SUMMARY_API_KEY, base_url=settings.LLM_SUMMARY_BASE_URL)
     resp = await client.chat.completions.create(
-        model=settings.LLM_MODEL,
+        model=settings.LLM_SUMMARY_MODEL,
         messages=[
             {"role": "system", "content": _COMPRESSION_PROMPT},
             {

@@ -41,6 +41,50 @@ def submit_after_sale(order_id: str, sale_type: str, reason: str) -> str:
 
 # ── 辅助：智能解析 order_id（支持数字 ID 或订单号） ──
 
+ORDER_STATUS_LABELS = {
+    "pending": "待处理",
+    "paid": "已付款",
+    "shipped": "已发货",
+    "delivered": "已签收",
+    "cancelled": "已取消",
+}
+
+LOGISTICS_STATUS_LABELS = {
+    "pending": "待处理",
+    "待发货": "待发货",
+    "运输中": "运输中",
+    "已签收": "已签收",
+}
+
+AFTER_SALE_TYPE_LABELS = {
+    "return": "退货",
+    "refund": "退款",
+    "exchange": "换货",
+}
+
+AFTER_SALE_STATUS_LABELS = {
+    "pending": "待审核",
+    "approved": "已通过",
+    "rejected": "已拒绝",
+    "completed": "已完成",
+}
+
+
+def _order_status_label(status: str) -> str:
+    return ORDER_STATUS_LABELS.get(status, status)
+
+
+def _logistics_status_label(status: str) -> str:
+    return LOGISTICS_STATUS_LABELS.get(status, status)
+
+
+def _after_sale_type_label(type_: str) -> str:
+    return AFTER_SALE_TYPE_LABELS.get(type_, type_)
+
+
+def _after_sale_status_label(status: str) -> str:
+    return AFTER_SALE_STATUS_LABELS.get(status, status)
+
 async def _resolve_order_id(db: AsyncSession, user_id: int, raw: str):
     """
     将 LLM 传来的 order_id 字符串解析为数据库数字 ID。
@@ -123,14 +167,16 @@ async def _execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_
                     "status": TaskStatus.DONE.value,
                 },
             )
-        lines = [f"共 {total} 笔订单，请用 ID（不是订单号）查详情："]
+        lines = [f"共 {total} 笔订单，请用 ID 或订单号查详情："]
         order_data = []
         for o in orders:
-            lines.append(f"  - ID={o.id} | {o.order_no} | {o.status} | ¥{o.total_amount}")
+            status_label = _order_status_label(o.status)
+            lines.append(f"  - ID={o.id} | {o.order_no} | {status_label} | ¥{o.total_amount}")
             order_data.append({
                 "id": o.id,
                 "order_no": o.order_no,
                 "status": o.status,
+                "status_label": status_label,
                 "total_amount": float(o.total_amount),
             })
         return ToolResult(
@@ -152,7 +198,8 @@ async def _execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_
         detail = await get_order_detail(db, order_id, user_id)
         order = detail["order"]
         items = detail["items"]
-        lines = [f"订单 {order.order_no} 详情：", f"  状态：{order.status}", f"  金额：¥{order.total_amount}"]
+        status_label = _order_status_label(order.status)
+        lines = [f"订单 {order.order_no} 详情：", f"  状态：{status_label}", f"  金额：¥{order.total_amount}"]
         if order.shipping_address:
             lines.append(f"  地址：{order.shipping_address}")
         lines.append("  商品：")
@@ -166,6 +213,7 @@ async def _execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_
                 "order_id": order.id,
                 "order_no": order.order_no,
                 "status": order.status,
+                "status_label": status_label,
                 "total_amount": float(order.total_amount),
                 "shipping_address": order.shipping_address,
                 "items": [
@@ -190,11 +238,12 @@ async def _execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_
         if err:
             return _tool_error(tool_name, err, TaskIntent.QUERY_LOGISTICS)
         logistics = await get_order_logistics(db, order_id, user_id)
+        status_label = _logistics_status_label(logistics.status)
         message = (
             f"订单 {order_id} 物流：\n"
             f"  快递公司：{logistics.company or '未分配'}\n"
             f"  快递单号：{logistics.tracking_no or '暂无'}\n"
-            f"  物流状态：{logistics.status}"
+            f"  物流状态：{status_label}"
         )
         return ToolResult(
             ok=True,
@@ -205,6 +254,7 @@ async def _execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_
                 "company": logistics.company,
                 "tracking_no": logistics.tracking_no,
                 "status": logistics.status,
+                "status_label": status_label,
             },
             task_patch={
                 "stage": TaskStage.COMPLETED.value,
@@ -229,11 +279,13 @@ async def _execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_
         if not reason.strip():
             return _tool_error(tool_name, "错误：请提供售后原因", TaskIntent.SUBMIT_AFTER_SALE)
         record = await create_after_sale(db, user_id, order_id, sale_type, reason)
+        type_label = _after_sale_type_label(record.type)
+        status_label = _after_sale_status_label(record.status)
         message = (
             f"售后申请已提交！\n"
             f"  售后编号：{record.id}\n"
-            f"  类型：{record.type}\n"
-            f"  状态：{record.status}"
+            f"  类型：{type_label}\n"
+            f"  状态：{status_label}"
         )
         return ToolResult(
             ok=True,
@@ -243,7 +295,9 @@ async def _execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_
                 "after_sale_id": record.id,
                 "order_id": order_id,
                 "type": record.type,
+                "type_label": type_label,
                 "status": record.status,
+                "status_label": status_label,
             },
             task_patch={
                 "stage": TaskStage.COMPLETED.value,

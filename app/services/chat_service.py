@@ -1,6 +1,5 @@
 """对话服务：会话管理、消息记录、Agent 编排"""
 
-import asyncio
 from typing import Optional
 
 from sqlalchemy import select
@@ -11,7 +10,9 @@ from app.errors import CONVERSATION_NOT_FOUND
 from app.logger import agent_logger
 from app.models.conversation import Conversation, Message
 from app.models.user import User
-from app.services.memory_service import save_memory_background, save_task_state
+from app.services.memory_service import save_memory_background, save_task_state, schedule_background_task
+
+AGENT_RECENT_MESSAGE_LIMIT = 10
 
 
 async def get_or_create_conversation(db: AsyncSession, user: User) -> Conversation:
@@ -110,7 +111,7 @@ async def process_agent_message(
     """
     await add_message(db, conversation, "user", user_content)
 
-    history = await get_conversation_messages(db, conversation.id, user.id, limit=20)
+    history = await get_conversation_messages(db, conversation.id, user.id, limit=AGENT_RECENT_MESSAGE_LIMIT)
     agent_result = await run_agent(
         db=db,
         user=user,
@@ -128,12 +129,13 @@ async def process_agent_message(
             user.id,
         )
 
-    asyncio.create_task(
+    schedule_background_task(
         save_memory_background(
             conversation.id,
             user.id,
             task_state=agent_result.task_state,
-        )
+        ),
+        name=f"save_memory:{conversation.id}:{user.id}",
     )
 
     return agent_result.reply

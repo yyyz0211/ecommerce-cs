@@ -42,6 +42,7 @@ async def run_agent(
         "db": db,
         "memory": {},
         "task_state": None,
+        "tool_iterations": 0,
     }
     result = await get_agent_graph().ainvoke(initial_state)
     final_messages = result["messages"]

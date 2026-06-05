@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
 
-MemoryTypeLiteral = Literal["summary", "task_state", "fact", "preference"]
+MemoryTypeLiteral = Literal["summary", "task_state", "fact", "preference", "summary_cursor", "rule_cursor"]
 
 
 class Conversation(Base):
