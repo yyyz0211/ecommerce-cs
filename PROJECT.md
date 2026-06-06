@@ -1,6 +1,7 @@
-# 电商智能客服系统 -- 项目文档 v0.1
+# 电商智能客服系统 -- 项目文档 v0.3
 
 > 个人学习项目，以实践驱动掌握 Python Web 开发 + AI Agent 开发
+> 仓库：https://github.com/yyyz0211/ecommerce-cs
 
 ---
 
@@ -22,7 +23,7 @@
 |------|------|------|
 | 后端框架 | FastAPI | Python async Web 框架 |
 | 数据库 | MySQL | 关系型数据库 |
-| ORM | SQLAlchemy 2.0 + Alembic | 数据库操作与迁移 |
+| ORM | SQLAlchemy 2.0 async | 异步 ORM（aiomysql + greenlet） |
 | Agent 框架 | LangChain / LangGraph | 构建对话智能体 |
 | AI 模型 | OpenAI API / 国产大模型 API | 根据实际情况选择 |
 | 前端 | 待定（Vue / React） | 后期决定 |
@@ -65,47 +66,52 @@ Agent + API 打通（agent 调用后端接口）
               [LLM API (OpenAI 等)]
 ```
 
-### 2.2 目录结构（初期规划）
+### 2.2 目录结构（当前）
 
 ```
 ecommerce-cs/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py              # FastAPI 入口
-│   ├── config.py             # 配置（数据库、API Key 等）
-│   ├── database.py           # 数据库连接
-│   ├── models/               # SQLAlchemy 模型
+│   ├── config.py             # 配置（数据库、JWT、LLM）
+│   ├── database.py           # 数据库连接 + 会话管理
+│   ├── errors.py             # 统一错误码（11 个错误码）
+│   ├── models/               # SQLAlchemy 模型（8 个类 → 8 张表）
 │   │   ├── __init__.py
-│   │   ├── user.py           # 用户模型
-│   │   ├── order.py          # 订单模型
-│   │   └── conversation.py   # 对话记录模型
+│   │   ├── base.py           # 模型基类（独立于 engine，避免循环导入）
+│   │   ├── user.py
+│   │   ├── order.py          # Order + OrderItem + Logistics
+│   │   ├── after_sale.py
+│   │   └── conversation.py   # Conversation + Message + TransferLog
 │   ├── schemas/              # Pydantic 请求/响应模型
 │   │   ├── __init__.py
 │   │   ├── user.py
 │   │   ├── order.py
+│   │   ├── after_sale.py
 │   │   └── chat.py
-│   ├── routers/              # API 路由
+│   ├── routers/              # API 路由（14 个端点）
 │   │   ├── __init__.py
-│   │   ├── auth.py           # 认证
-│   │   ├── users.py          # 用户信息
-│   │   ├── orders.py         # 订单查询
-│   │   ├── after_sale.py     # 售后处理
-│   │   └── chat.py           # 对话入口
+│   │   ├── auth.py           # 注册/登录/刷新
+│   │   ├── users.py          # 个人信息 CRUD
+│   │   ├── orders.py         # 订单 CRUD + 分页 + 取消
+│   │   ├── after_sale.py     # 售后 CRUD
+│   │   └── chat.py           # 会话管理（Phase 3 接 Agent）
 │   ├── services/             # 业务逻辑层
 │   │   ├── __init__.py
-│   │   ├── order_service.py
+│   │   ├── auth_service.py   # JWT 签发 + 鉴权注入
+│   │   ├── user_service.py   # 注册/登录/修改
+│   │   ├── order_service.py  # 订单查询/创建/取消 + 分页 + 状态校验
 │   │   ├── after_sale_service.py
-│   │   └── agent_service.py  # Agent 对话逻辑
-│   └── agent/                # Agent 层
-│       ├── __init__.py
-│       ├── llm.py            # LLM 客户端配置
-│       ├── tools.py          # 自定义工具（查订单、提交售后等）
-│       └── graph.py          # LangGraph 对话图定义
-├── alembic/                  # 数据库迁移
-├── tests/                    # 测试
+│   │   └── chat_service.py   # 会话 + 消息管理
+│   └── agent/                # Agent 层（Phase 3）
+│       └── __init__.py
+├── tests/
+├── debug.html                # 前端调试面板
+├── seed_data.py              # 种子数据脚本
 ├── requirements.txt
-├── .env                       # 环境变量（不提交）
-└── PROJECT.md                # 本文档
+├── .env.example
+├── .gitignore
+└── PROJECT.md
 ```
 
 ---
@@ -155,8 +161,10 @@ ecommerce-cs/
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | /api/orders | 获取我的订单列表 |
-| GET | /api/orders/{id} | 获取订单详情 |
+| GET | /api/orders?page=1&size=10 | 获取我的订单列表（分页） |
+| POST | /api/orders | 创建订单（调试用） |
+| GET | /api/orders/{id} | 获取订单详情（含商品明细） |
+| PATCH | /api/orders/{id}/cancel | 取消订单（pending/paid 可取消） |
 | GET | /api/orders/{id}/logistics | 获取物流信息 |
 
 ### 4.4 售后
@@ -167,12 +175,12 @@ ecommerce-cs/
 | GET | /api/after-sales | 查看我的售后列表 |
 | GET | /api/after-sales/{id} | 查看售后详情与进度 |
 
-### 4.5 对话（核心）
+### 4.5 对话
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | /api/chat/session | 创建新对话会话 |
-| POST | /api/chat/message | 发送消息，Agent 回复 |
+| POST | /api/chat/message | 发送消息，Agent 回复（Phase 3） |
 | GET | /api/chat/history/{session_id} | 获取某次对话记录 |
 
 `POST /api/chat/message` 是核心接口，大致流程：
@@ -188,6 +196,24 @@ ecommerce-cs/
                          ↓
                返回给用户 + 记录到数据库
 ```
+
+### 4.6 错误格式
+
+所有错误统一返回 `{"code": "...", "message": "..."}`，不单独散落 `detail`：
+
+| code | HTTP 状态码 | 说明 |
+|------|-----------|------|
+| INVALID_TOKEN | 401 | JWT 无效 |
+| USER_NOT_FOUND | 401 | 用户不存在 |
+| WRONG_PASSWORD | 401 | 密码错误 |
+| USERNAME_TAKEN | 409 | 用户名已存在 |
+| ORDER_NOT_FOUND | 404 | 订单不存在 |
+| ORDER_CANNOT_CANCEL | 400 | 订单不可取消（动态 message） |
+| LOGISTICS_NOT_FOUND | 404 | 暂无物流信息 |
+| AFTER_SALE_NOT_FOUND | 404 | 售后记录不存在 |
+| CONVERSATION_NOT_FOUND | 404 | 会话不存在 |
+
+定义位置：`app/errors.py`，全局处理器在 `app/main.py`。
 
 ---
 
@@ -325,20 +351,30 @@ Agent 回复"已转接人工客服，请稍候，会尽快为您处理"
 
 ## 七、开发阶段规划
 
-### Phase 1：项目骨架
-- [ ] 初始化 FastAPI 项目
-- [ ] 配置 MySQL 连接 + SQLAlchemy
-- [ ] 配置 Alembic 迁移
-- [ ] 实现用户注册/登录（JWT）
-- [ ] 验证接口可用
+### Phase 1：项目骨架 [已完成]
+- [x] 初始化 FastAPI 项目
+- [x] 配置 MySQL 连接 + SQLAlchemy
+- [x] 实现用户注册/登录（JWT）
+- [x] 验证接口可用
 
-### Phase 2：业务 API
-- [ ] 订单表 + API（查询列表、详情）
-- [ ] 物流表 + API
-- [ ] 售后表 + API（提交申请、查询进度）
-- [ ] 编写测试数据（种子数据）
+### Phase 2：业务 API [已完成]
+- [x] 订单表 + API（查询列表、详情）
+- [x] 物流表 + API
+- [x] 售后表 + API（提交申请、查询进度）
+- [x] 编写测试数据（种子数据）
 
-### Phase 3：Agent 对话
+### Phase 2.5：补全接口 + 优化 [已完成]
+- [x] POST /api/auth/refresh（刷新 Token）
+- [x] PATCH /api/users/me（修改个人信息）
+- [x] POST /api/orders（创建测试订单）
+- [x] PATCH /api/orders/{id}/cancel（取消订单 + 状态校验）
+- [x] 订单列表分页（?page=&size=）
+- [x] 对话会话基础设施（POST session / GET history）
+- [x] 前端调试面板（debug.html）
+- [x] SQLAlchemy 异步迁移（async engine + AsyncSession + select() 语法）
+- [x] 统一错误码（app/errors.py，11 个 AppError + 全局异常处理器）
+
+### Phase 3：Agent 对话 ← 当前
 - [ ] 接入 LLM API（配置 Key，测试调用）
 - [ ] LangChain 基础对话链路
 - [ ] 自定义 Tool：查订单
@@ -346,19 +382,188 @@ Agent 回复"已转接人工客服，请稍候，会尽快为您处理"
 - [ ] 自定义 Tool：提交售后申请
 - [ ] LangGraph 多轮对话编排
 - [ ] 意图识别 + 工具调用
+- [ ] task_state 结构设计
+- [ ] next_action 规则表 + LLM 可选覆盖策略
 
 ### Phase 4：对话 API + 完善
-- [ ] 对话会话管理（创建/查询历史）
-- [ ] Agent 回复流接入 POST /api/chat/message
 - [ ] 转人工占位机制
-- [ ] 对话记录入库
+- [ ] Agent 回复流接入 POST /api/chat/message
+- [ ] 对话记录入库（Agent 消息）
 - [ ] 边界情况处理（意图不明确、API 调用失败等）
+
+---
+
+## Phase 3.5：task_state 结构设计
+
+### 设计目标
+
+`task_state` 用于在多轮对话中记录**当前任务的流程状态**，让 Agent 能够：
+
+- 知道对话进行到哪一步
+- 判断下一步应该做什么
+- 在上下文压缩后仍能恢复关键业务参数（订单号、售后类型等）
+
+### 推荐结构
+
+```json
+{
+  "version": 1,
+  "stage": "awaiting_order_id",
+  "intent": "query_logistics",
+  "status": "in_progress",
+  "order_id": null,
+  "customer_id": null,
+  "confidence": 0.92,
+  "next_action": "ask_user_for_order_id",
+  "updated_at": "2026-06-03T14:52:00+08:00"
+}
+```
+
+### 字段说明
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `version` | int | Schema 版本号，方便后续升级兼容 |
+| `stage` | str | 当前对话阶段（见下方枚举） |
+| `intent` | str | 识别到的用户意图（见下方枚举） |
+| `status` | str | 任务整体状态（见下方枚举） |
+| `order_id` | int/null | 业务关键字段：当前关联的订单 ID |
+| `customer_id` | int/null | 用户 ID（可省略，与 user_id 重复） |
+| `confidence` | float | 综合置信度，0.0 ~ 1.0 |
+| `next_action` | str | 下一步系统应该做什么（见下方枚举） |
+| `updated_at` | str | ISO 8601 时间戳 |
+
+### 推荐枚举值
+
+#### `stage`（对话阶段）
+
+| 值 | 说明 |
+|---|---|
+| `new` | 新对话，未开始任务 |
+| `awaiting_order_id` | 等待用户提供订单号 |
+| `awaiting_confirmation` | 等待用户确认信息 |
+| `processing` | 正在处理（调用 API 中） |
+| `completed` | 任务已完成 |
+| `failed` | 任务失败 |
+
+#### `intent`（用户意图）
+
+| 值 | 说明 |
+|---|---|
+| `query_order_status` | 查询订单状态 |
+| `query_logistics` | 查询物流信息 |
+| `query_after_sale` | 查询售后进度 |
+| `submit_after_sale` | 提交售后申请 |
+| `cancel_order` | 取消订单 |
+| `transfer_human` | 转人工 |
+| `other` | 其他/未识别 |
+
+#### `status`（任务状态）
+
+| 值 | 说明 |
+|---|---|
+| `pending` | 待处理 |
+| `in_progress` | 进行中 |
+| `done` | 已完成 |
+| `error` | 异常/失败 |
+
+#### `next_action`（下一步动作）
+
+| 值 | 说明 |
+|---|---|
+| `ask_user_for_order_id` | 让用户提供订单号 |
+| `confirm_user_intent` | 确认用户意图 |
+| `call_backend_api` | 调用后端 API |
+| `reply_user` | 回复用户 |
+| `transfer_to_human` | 转人工 |
+| `stop` | 结束对话 |
+
+### confidence 设计原则
+
+`confidence` 是一个**综合置信度**，建议由模型分数、规则命中、上下文完整度共同决定。
+
+#### 计算策略
+
+```
+final_confidence = 模型概率 × 0.4 + 规则命中 × 0.3 + 上下文完整度 × 0.3
+```
+
+#### 使用建议
+
+| confidence 范围 | 系统行为 |
+|----------------|----------|
+| >= 0.85 | 可直接执行，无需确认 |
+| 0.6 ~ 0.85 | 先确认，再执行 |
+| < 0.6 | 走兜底逻辑或转人工 |
+
+> **注**：如果你的意图种类少、业务流程简单，可以先不加 `confidence`，关键分支靠 `stage` / `intent` / `tool_calls` 足够支撑。
+
+### 落地到代码
+
+`task_state` 当前存在：
+
+1. **conversation_memories 表**：`memory_type = "task_state"`，`content` 存 JSON 字符串
+2. **唯一性边界**：同一会话同一 `memory_type` 只保留一条，使用 `conversation_id + memory_type` 约束
+3. **保存时机**：
+   - Agent 每次回复后更新
+   - 关键节点（拿到 order_id、提交售后成功等）
+4. **读取时机**：
+   - Agent 每次处理消息时从 DB 加载
+   - 用于恢复上下文、决定下一步
+
+#### 示例存储格式
+
+```python
+task_state = {
+    "version": 1,
+    "stage": "completed",
+    "intent": "query_logistics",
+    "status": "done",
+    "order_id": 12345,
+    "confidence": 0.95,
+    "next_action": "reply_user",
+    "updated_at": "2026-06-03T14:52:00+08:00"
+}
+```
+
+#### 与现有代码的衔接
+
+当前实现已将 `task_state` 接入 LangGraph 返回值：
+
+- `graph._build_task_state()` 根据工具调用和工具结果生成结构化状态
+- `chat_service.process_agent_message()` 从 graph 结果读取状态
+- `memory_service.save_task_state()` 统一序列化并落库
+- `graph._format_memory_for_prompt()` 按 `summary / task_state / preference / fact` 分层注入系统提示词
+
+### Phase 4.5：RAG 知识库
+
+#### 步骤 4.5.1：数据爬取（京东帮助中心）
+- [ ] 分析京东帮助中心页面结构（help.jd.com）
+- [ ] 编写爬虫脚本 `scripts/crawl_jd_faq.py`
+  - 目标分类：售后政策、物流配送、支付发票、账户管理
+  - 每类约 50 条，总计约 200 条 FAQ
+  - 处理 GBK 编码
+- [ ] 编写清洗脚本 `scripts/clean_faq.py`
+  - HTML → 纯文本
+  - LLM 辅助提取 Q&A 对
+  - 输出为 `knowledge/` 目录下的 Markdown 文件
+
+#### 步骤 4.5.2：知识库搭建
+- [ ] 向量数据库搭建（Chroma，本地轻量）
+- [ ] 文档切片策略测试（固定长度 vs 语义分块）
+- [ ] Embedding（OpenAI embedding 或本地模型）
+- [ ] 召回精度测试（评估不同切片策略的效果）
+
+#### 步骤 4.5.3：Agent 集成
+- [ ] Agent Tool: search_knowledge_base（向量检索）
+- [ ] Prompt 模板：检索结果 + 用户问题 → LLM 生成回答
+- [ ] 边界测试：知识库没有的问题（不应强行编造）
 
 ### Phase 5：测试 + 优化
 - [ ] 单元测试（关键业务逻辑）
 - [ ] 手动测试完整对话链路
 - [ ] 补全文档和注释
-- [ ] （可选）简单前端页面联调
+- [ ] 前端框架（Vue/React）替换 debug.html
 
 ---
 
@@ -389,7 +594,7 @@ Agent 回复"已转接人工客服，请稍候，会尽快为您处理"
 - 管理员后台（知识库、对话管理）
 - 前端框架选型（React / Vue）
 - 部署方案
-- 知识库（FAQ）管理
+- RAG 知识库（Phase 4.5）
 - 对话数据分析和统计
 - 多模型切换
 - 语音/多模态
@@ -398,28 +603,39 @@ Agent 回复"已转接人工客服，请稍候，会尽快为您处理"
 
 ## 十、附录
 
-### 10.1 依赖清单（初版）
+### 10.1 依赖清单
 
 ```
+# 核心
 fastapi
 uvicorn[standard]
 sqlalchemy>=2.0
 pymysql
 alembic
-python-dotenv
-python-jose[cryptography]  # JWT
-passlib[bcrypt]             # 密码哈希
 pydantic
-httpx                       # Agent 调用外部 API 使用
+pydantic-settings
+python-dotenv
+
+# 认证
+python-jose[cryptography]
+passlib[bcrypt]
+
+# Agent
 langchain
 langgraph
-openai                      # 或其他 LLM SDK
+openai
+httpx
+
+# RAG（Phase 4.5）
+chromadb
+langchain-text-splitters
+
+# 测试
 pytest
-httpx                       # 测试用
 ```
 
 ---
 
-> 文档版本：v0.1
-> 最后更新：2026-05-28
-> 下一步：确认文档内容无误后，进入 Phase 1 开发
+> 文档版本：v0.4
+> 最后更新：2026-06-03
+> 下一步：Phase 3 Agent 对话 → task_state 结构设计（已完成）

@@ -28,5 +28,9 @@ env/
 # 编辑器历史
 .history/
 
+# RAG 本地索引（可由脚本重新生成，不提交）
+data/chroma/
+data/jd_faq_bm25.pkl
+
 # Alembic 迁移（后续配置后解除注释）
 # alembic/versions/

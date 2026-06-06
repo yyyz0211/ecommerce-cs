@@ -1,24 +1,14 @@
-"""数据库引擎与会话管理"""
+"""数据库引擎与会话管理 -- 异步版本"""
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
 from app.config import settings
+from app.models.base import Base  # noqa: F401 — 确保模型注册
 
-# 异步场景下用 async 引擎，此处先使用同步方式
-engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True)
+AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-
-class Base(DeclarativeBase):
-    """所有模型的基类"""
-    pass
-
-
-def get_db():
-    """FastAPI 依赖注入：获取数据库会话"""
-    db = SessionLocal()
-    try:
+async def get_db():
+    """FastAPI 依赖注入：获取异步数据库会话"""
+    async with AsyncSessionLocal() as db:
         yield db
-    finally:
-        db.close()
