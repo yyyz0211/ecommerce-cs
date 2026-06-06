@@ -39,6 +39,13 @@ def submit_after_sale(order_id: str, sale_type: str, reason: str) -> str:
     return "Tool must be executed with db context"
 
 
+@tool
+def search_faq_knowledge(query: str, category: str = "") -> str:
+    """查询京东帮助中心 FAQ 知识库。适合查询退换货规则、物流配送规则、支付发票、账户管理等平台政策。
+    category 可选：售后政策 / 物流配送 / 支付发票 / 账户管理。"""
+    return "Tool must be executed with db context"
+
+
 # ── 辅助：智能解析 order_id（支持数字 ID 或订单号） ──
 
 ORDER_STATUS_LABELS = {
@@ -307,6 +314,50 @@ async def _execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_
             },
         )
 
+    elif tool_name == "search_faq_knowledge":
+        from app.rag.service import search_faq_knowledge as search_faq_service
+
+        query = (tool_args.get("query") or "").strip()
+        category = (tool_args.get("category") or "").strip() or None
+        if not query:
+            return _tool_error(tool_name, "错误：请提供知识库查询问题", TaskIntent.OTHER)
+
+        result = await search_faq_service(query=query, category=category, top_k=3)
+        matches = result["matches"]
+        if not matches:
+            return ToolResult(
+                ok=True,
+                tool=tool_name,
+                message="未在京东帮助中心知识库中检索到明确资料。",
+                data=result,
+                task_patch={
+                    "stage": TaskStage.COMPLETED.value,
+                    "intent": TaskIntent.OTHER.value,
+                    "status": TaskStatus.DONE.value,
+                },
+            )
+
+        lines = ["知识库检索结果："]
+        for index, item in enumerate(matches, start=1):
+            content = item["content"]
+            preview = content[:500] + "..." if len(content) > 500 else content
+            lines.append(
+                f"{index}. {item['title']}（{item['category']}）\n"
+                f"{preview}\n"
+                f"来源：{item['url']}"
+            )
+        return ToolResult(
+            ok=True,
+            tool=tool_name,
+            message="\n\n".join(lines),
+            data=result,
+            task_patch={
+                "stage": TaskStage.COMPLETED.value,
+                "intent": TaskIntent.OTHER.value,
+                "status": TaskStatus.DONE.value,
+            },
+        )
+
     else:
         return _tool_error(tool_name, f"错误：未知工具 {tool_name}", TaskIntent.OTHER, "UNKNOWN_TOOL")
 
@@ -336,8 +387,9 @@ def _intent_for_tool(tool_name: str) -> TaskIntent:
         "query_order_detail": TaskIntent.QUERY_ORDER_STATUS,
         "query_logistics": TaskIntent.QUERY_LOGISTICS,
         "submit_after_sale": TaskIntent.SUBMIT_AFTER_SALE,
+        "search_faq_knowledge": TaskIntent.OTHER,
     }.get(tool_name, TaskIntent.OTHER)
 
 
 # 工具列表（给 LLM 看，帮助它决定调用哪个）
-AGENT_TOOLS = [query_orders, query_order_detail, query_logistics, submit_after_sale]
+AGENT_TOOLS = [query_orders, query_order_detail, query_logistics, submit_after_sale, search_faq_knowledge]

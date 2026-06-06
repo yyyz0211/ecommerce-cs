@@ -13,6 +13,9 @@ httpx
 openai
 langgraph
 langchain-core
+chromadb
+jieba
+rank-bm25
 
 # 测试
 pytest
