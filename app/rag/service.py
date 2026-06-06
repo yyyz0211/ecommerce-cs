@@ -1,10 +1,10 @@
-"""Service-level helpers for RAG tools."""
+"""RAG 工具的服务层辅助函数。"""
 
 from __future__ import annotations
 
 from typing import Optional
 
-from app.rag.hybrid_retriever import retrieve_hybrid
+from app.rag.pipeline import run_rag_pipeline
 
 
 async def search_faq_knowledge(
@@ -14,8 +14,8 @@ async def search_faq_knowledge(
     top_k: int = 3,
     min_score: Optional[float] = None,
 ) -> dict:
-    """Search FAQ knowledge and return a JSON-serializable payload."""
-    trace = await retrieve_hybrid(query, top_k=top_k, category=category)
+    """检索 FAQ 知识库，并返回可 JSON 序列化的数据。"""
+    trace = await run_rag_pipeline(query, top_k=top_k, category=category)
     contexts = trace.selection.contexts
     if min_score is not None:
         contexts = [item for item in contexts if item.final_score is not None and item.final_score >= min_score]

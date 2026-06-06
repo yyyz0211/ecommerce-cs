@@ -1,8 +1,10 @@
+import pytest
+
 from app.rag.schemas import RAGDocument, RetrievalCandidate
 
 
 def test_query_analyzer_extracts_category_and_keywords():
-    from app.rag.query_analyzer import analyze_query
+    from app.rag.planning.analyzer import analyze_query
 
     analysis = analyze_query("生鲜商品可以拒收吗？运费怎么算")
 
@@ -13,7 +15,7 @@ def test_query_analyzer_extracts_category_and_keywords():
 
 
 def test_query_analyzer_marks_order_specific_queries():
-    from app.rag.query_analyzer import analyze_query
+    from app.rag.planning.analyzer import analyze_query
 
     analysis = analyze_query("我的订单 202605280001 到哪里了")
 
@@ -21,8 +23,21 @@ def test_query_analyzer_marks_order_specific_queries():
     assert "订单" in analysis.keywords
 
 
+def test_query_planner_builds_retrieval_plan():
+    from app.rag.planning.planner import plan_query
+
+    plan = plan_query("生鲜商品可以拒收吗？")
+
+    assert plan.raw_query == "生鲜商品可以拒收吗？"
+    assert plan.normalized_query == "生鲜商品可以拒收吗"
+    assert plan.primary_query == "生鲜商品可以拒收吗"
+    assert plan.category == "物流配送"
+    assert plan.filters == {"category": "物流配送"}
+    assert plan.retrieval_queries == ["生鲜商品可以拒收吗"]
+
+
 def test_keyword_tokenizer_keeps_domain_terms():
-    from app.rag.keyword_store import tokenize
+    from app.rag.indexing.keyword_store import tokenize
 
     tokens = tokenize("七天无理由退货和货到付款发票")
 
@@ -33,7 +48,7 @@ def test_keyword_tokenizer_keeps_domain_terms():
 
 
 def test_merge_candidates_combines_sources_and_scores():
-    from app.rag.hybrid_retriever import merge_candidates
+    from app.rag.retrieval.fusion import merge_candidates
 
     dense = RetrievalCandidate(
         id="faq-1",
@@ -56,9 +71,50 @@ def test_merge_candidates_combines_sources_and_scores():
     assert merged[0].sources == ["dense_faq", "bm25"]
 
 
+@pytest.mark.asyncio
+async def test_pipeline_composes_retrieval_fusion_rerank_and_selection(monkeypatch):
+    from app.rag.pipeline import run_rag_pipeline
+    from app.rag.retrieval.hybrid import RetrievalChannels
+
+    dense = RetrievalCandidate(
+        id="dense",
+        faq_id="dense",
+        doc_type="faq",
+        category="物流配送",
+        question="生鲜拒收规则",
+        text="生鲜暂不支持拒收。",
+        url="https://example.com/dense",
+        dense_score=0.8,
+        sources=["dense_faq"],
+    )
+    sparse = dense.model_copy(update={"dense_score": None, "sparse_score": 1.0, "sources": ["bm25"]})
+
+    async def fake_embed_query(query: str):
+        return [0.1, 0.2]
+
+    def fake_retrieve_candidates(plan, query_embedding, *, dense_top_k, sparse_top_k):
+        assert plan.primary_query == "生鲜商品可以拒收吗"
+        assert query_embedding == [0.1, 0.2]
+        assert dense_top_k == 5
+        assert sparse_top_k == 5
+        return RetrievalChannels(dense_faq=[dense], dense_chunk=[], sparse=[sparse])
+
+    monkeypatch.setattr("app.rag.pipeline.embed_query", fake_embed_query)
+    monkeypatch.setattr("app.rag.pipeline.retrieve_candidates", fake_retrieve_candidates)
+
+    trace = await run_rag_pipeline("生鲜商品可以拒收吗？", top_k=1, dense_top_k=5, sparse_top_k=5)
+
+    assert trace.analysis.primary_query == "生鲜商品可以拒收吗"
+    assert trace.dense_faq == [dense]
+    assert trace.sparse == [sparse]
+    assert len(trace.merged) == 1
+    assert trace.reranked[0].id == "dense"
+    assert trace.selection.contexts[0].id == "dense"
+
+
 def test_reranker_prefers_category_and_keyword_overlap():
-    from app.rag.query_analyzer import analyze_query
-    from app.rag.reranker import rerank_candidates
+    from app.rag.planning.analyzer import analyze_query
+    from app.rag.reranking.rule import rerank_candidates
 
     analysis = analyze_query("生鲜商品可以拒收吗")
     good = RetrievalCandidate(
@@ -95,7 +151,7 @@ def test_reranker_prefers_category_and_keyword_overlap():
 
 
 def test_context_selector_keeps_diverse_faqs_under_budget():
-    from app.rag.context_selector import select_contexts
+    from app.rag.evidence.selector import select_contexts
 
     candidates = [
         RetrievalCandidate(
@@ -137,7 +193,7 @@ def test_context_selector_keeps_diverse_faqs_under_budget():
 
 
 def test_loader_builds_faq_level_documents(tmp_path):
-    from app.rag.loader import load_faq_documents
+    from app.rag.indexing.loader import load_faq_documents
 
     path = tmp_path / "clean.jsonl"
     path.write_text(

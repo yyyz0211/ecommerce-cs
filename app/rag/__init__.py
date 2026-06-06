@@ -1,2 +1,1 @@
-"""RAG package for FAQ knowledge retrieval."""
-
+"""FAQ 知识库检索 RAG 包。"""

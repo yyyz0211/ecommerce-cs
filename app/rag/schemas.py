@@ -1,18 +1,18 @@
-"""RAG data contracts."""
+"""RAG 数据契约。"""
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
 
 class RAGDocument(BaseModel):
-    """A FAQ-level document or chunk stored in retrieval indexes."""
+    """存入检索索引的 FAQ 级别文档或 chunk。"""
 
     id: str
     faq_id: str
-    doc_type: str = Field(default="chunk", description="faq or chunk")
+    doc_type: str = Field(default="chunk", description="FAQ 文档或 chunk")
     chunk_index: int = 0
     chunk_count: int = 1
     source: str = "京东帮助中心"
@@ -24,7 +24,7 @@ class RAGDocument(BaseModel):
 
 
 class RAGMatch(BaseModel):
-    """A retrieved FAQ-level document or chunk from a raw recall channel."""
+    """原始召回通道返回的 FAQ 级别文档或 chunk。"""
 
     id: str
     faq_id: str
@@ -38,19 +38,19 @@ class RAGMatch(BaseModel):
     source: str = "京东帮助中心"
     section_title: Optional[str] = None
     distance: Optional[float] = None
-    score: Optional[float] = Field(default=None, description="Convenience score derived from distance.")
-    retrieval_source: Optional[str] = Field(default=None, description="dense_faq, dense_chunk, or bm25.")
+    score: Optional[float] = Field(default=None, description="由 distance 换算出的展示分数。")
+    retrieval_source: Optional[str] = Field(default=None, description="召回来源：dense_faq、dense_chunk 或 bm25。")
 
 
 class RAGSearchResult(BaseModel):
-    """Stable service-level search result."""
+    """服务层稳定返回的检索结果。"""
 
     query: str
     matches: list[RAGMatch]
 
 
 class QueryAnalysis(BaseModel):
-    """Normalized query information used before retrieval."""
+    """检索前使用的归一化 query 信息。"""
 
     raw_query: str
     normalized_query: str
@@ -60,8 +60,24 @@ class QueryAnalysis(BaseModel):
     rewrite_query: Optional[str] = None
 
 
+class RetrievalPlan(QueryAnalysis):
+    """Query Planner 产出的检索计划。"""
+
+    retrieval_queries: list[str] = Field(default_factory=list)
+    filters: dict[str, Any] = Field(default_factory=dict)
+
+    @property
+    def primary_query(self) -> str:
+        """返回后续召回阶段优先使用的检索文本。"""
+        if self.rewrite_query:
+            return self.rewrite_query
+        if self.retrieval_queries:
+            return self.retrieval_queries[0]
+        return self.normalized_query or self.raw_query
+
+
 class RetrievalCandidate(BaseModel):
-    """Merged candidate with scores from one or more recall channels."""
+    """合并后的候选结果，包含一个或多个召回通道的分数。"""
 
     id: str
     faq_id: str
@@ -82,7 +98,7 @@ class RetrievalCandidate(BaseModel):
 
 
 class ContextSelection(BaseModel):
-    """Grounding contexts selected for answer generation."""
+    """为答案生成选出的 grounding 上下文。"""
 
     query: str
     contexts: list[RetrievalCandidate]
@@ -91,10 +107,10 @@ class ContextSelection(BaseModel):
 
 
 class RetrievalTrace(BaseModel):
-    """Full pipeline trace for CLI inspection and debugging."""
+    """用于 CLI 排查和调试的完整检索链路 trace。"""
 
     query: str
-    analysis: QueryAnalysis
+    analysis: RetrievalPlan
     dense_faq: list[RetrievalCandidate] = Field(default_factory=list)
     dense_chunk: list[RetrievalCandidate] = Field(default_factory=list)
     sparse: list[RetrievalCandidate] = Field(default_factory=list)
