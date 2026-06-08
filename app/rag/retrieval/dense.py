@@ -43,19 +43,23 @@ def retrieve_dense(
     *,
     top_k: int,
 ) -> tuple[list[RetrievalCandidate], list[RetrievalCandidate]]:
-    """分别从 FAQ 级别和 chunk 级别 Chroma 集合召回候选结果。"""
+    """分别从 FAQ 级别和 chunk 级别 Chroma 集合召回候选结果。
+
+    planner 推断出的分类只作为后续重排的软信号，不在召回阶段做硬过滤。
+    否则一旦分类误判，正确 FAQ 会在初始召回阶段被直接丢弃。
+    """
     dense_faq = _query_chroma_candidates(
         query_embedding,
         collection_name=settings.CHROMA_DOC_COLLECTION,
         source="dense_faq",
         top_k=top_k,
-        category=plan.category,
+        category=None,
     )
     dense_chunk = _query_chroma_candidates(
         query_embedding,
         collection_name=settings.CHROMA_CHUNK_COLLECTION,
         source="dense_chunk",
         top_k=top_k,
-        category=plan.category,
+        category=None,
     )
     return dense_faq, dense_chunk

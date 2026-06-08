@@ -252,6 +252,8 @@ def rank_candidates_for_v4(candidates: Iterable[RetrievalCandidate]) -> list[Ret
 
 
 def fusion_score(candidate: RetrievalCandidate) -> float:
+    if candidate.fusion_score is not None:
+        return candidate.fusion_score
     dense = candidate.dense_score or 0.0
     sparse = candidate.sparse_score or 0.0
     score = 0.5 * dense + 0.5 * sparse
@@ -274,6 +276,7 @@ def candidate_to_result(candidate: RetrievalCandidate, rank: int) -> dict[str, A
         "title": candidate.question,
         "dense_score": candidate.dense_score,
         "sparse_score": candidate.sparse_score,
+        "fusion_score": candidate.fusion_score,
         "final_score": candidate.final_score,
         "sources": candidate.sources,
         "reasons": candidate.rerank_reasons,

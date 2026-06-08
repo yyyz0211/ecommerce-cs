@@ -17,15 +17,21 @@ def rerank_candidates(candidates: list[RetrievalCandidate], analysis: QueryAnaly
         score = 0.0
         reasons: list[str] = []
 
-        if candidate.dense_score is not None:
-            contribution = 0.35 * candidate.dense_score
+        if candidate.fusion_score is not None:
+            contribution = 0.35 * candidate.fusion_score
             score += contribution
-            reasons.append(f"dense_score:{contribution:.3f}")
+            reasons.append(f"rrf_fusion:{contribution:.3f}")
+        else:
+            # 单元测试或单路调用可能没有经过 fusion，保留旧分数作为兜底。
+            if candidate.dense_score is not None:
+                contribution = 0.35 * candidate.dense_score
+                score += contribution
+                reasons.append(f"dense_score:{contribution:.3f}")
 
-        if candidate.sparse_score is not None:
-            contribution = 0.25 * candidate.sparse_score
-            score += contribution
-            reasons.append(f"bm25_score:{contribution:.3f}")
+            if candidate.sparse_score is not None:
+                contribution = 0.25 * candidate.sparse_score
+                score += contribution
+                reasons.append(f"bm25_score:{contribution:.3f}")
 
         if analysis.category and candidate.category == analysis.category:
             score += 0.15

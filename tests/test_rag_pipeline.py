@@ -68,7 +68,79 @@ def test_merge_candidates_combines_sources_and_scores():
     assert len(merged) == 1
     assert merged[0].dense_score == 0.82
     assert merged[0].sparse_score == 0.6
+    assert merged[0].fusion_score == 1.0
     assert merged[0].sources == ["dense_faq", "bm25"]
+
+
+def test_merge_candidates_uses_rrf_rank_signal():
+    from app.rag.retrieval.fusion import merge_candidates
+
+    dense_top = RetrievalCandidate(
+        id="a",
+        faq_id="a",
+        doc_type="faq",
+        category="支付发票",
+        question="退款规则",
+        text="退款规则说明。",
+        url="https://example.com/a",
+        dense_score=0.7,
+        sources=["dense_chunk"],
+    )
+    dense_second = dense_top.model_copy(update={"id": "c", "faq_id": "c", "question": "其他退款规则"})
+    sparse_top = dense_top.model_copy(
+        update={"id": "b", "faq_id": "b", "dense_score": None, "sparse_score": 1.0, "sources": ["bm25"]}
+    )
+    sparse_second_same_as_dense_top = dense_top.model_copy(
+        update={"dense_score": None, "sparse_score": 0.8, "sources": ["bm25"]}
+    )
+
+    merged = merge_candidates([dense_top, dense_second], [sparse_top, sparse_second_same_as_dense_top])
+
+    assert [candidate.id for candidate in merged] == ["a", "b", "c"]
+    assert merged[0].sources == ["dense_chunk", "bm25"]
+    assert merged[0].fusion_score == 1.0
+    assert merged[0].fusion_score > merged[1].fusion_score
+    assert merged[1].fusion_score > merged[2].fusion_score
+
+
+def test_dense_retrieval_uses_category_as_soft_signal_only(monkeypatch):
+    from app.rag.planning.planner import plan_query
+    from app.rag.retrieval.dense import retrieve_dense
+
+    seen_categories = []
+
+    def fake_query_documents(query_embedding, *, top_k, category, collection_name):
+        seen_categories.append(category)
+        return []
+
+    monkeypatch.setattr("app.rag.retrieval.dense.query_documents", fake_query_documents)
+
+    plan = plan_query("退款一般几天到，为什么还没到账？")
+    assert plan.category is not None
+
+    retrieve_dense(plan, [0.1, 0.2], top_k=5)
+
+    assert seen_categories == [None, None]
+
+
+def test_sparse_retrieval_uses_category_as_soft_signal_only(monkeypatch):
+    from app.rag.planning.planner import plan_query
+    from app.rag.retrieval.sparse import retrieve_sparse
+
+    seen_categories = []
+
+    def fake_search_keyword_index(query, *, top_k, category):
+        seen_categories.append(category)
+        return []
+
+    monkeypatch.setattr("app.rag.retrieval.sparse.search_keyword_index", fake_search_keyword_index)
+
+    plan = plan_query("支付密码忘记了，现在付款付不了怎么找回？")
+    assert plan.category is not None
+
+    retrieve_sparse(plan, top_k=5)
+
+    assert seen_categories == [None]
 
 
 @pytest.mark.asyncio

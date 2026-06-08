@@ -92,6 +92,7 @@ class RetrievalCandidate(BaseModel):
     section_title: Optional[str] = None
     dense_score: Optional[float] = None
     sparse_score: Optional[float] = None
+    fusion_score: Optional[float] = Field(default=None, description="RRF 融合后的归一化分数。")
     final_score: Optional[float] = None
     sources: list[str] = Field(default_factory=list)
     rerank_reasons: list[str] = Field(default_factory=list)
