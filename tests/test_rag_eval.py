@@ -1,13 +1,20 @@
 import argparse
+from unittest.mock import AsyncMock
 
-from app.rag.schemas import RetrievalCandidate
+import pytest
+
+from app.rag.schemas import ContextSelection, RAGDocument, RetrievalCandidate
 from scripts.rag_eval import (
     EVAL_VERSIONS,
+    EvalCase,
+    RagEvaluator,
     apply_suite_defaults,
     compute_case_metrics,
     keyword_overlap_score,
     load_eval_cases,
+    merge_candidates_weighted_rrf,
     rank_candidates_for_v4,
+    rank_dense_with_bm25_boost,
 )
 
 
@@ -34,6 +41,10 @@ def test_eval_versions_are_ordered_from_baseline_to_current():
         "rag_v3_dense_faq_chunk",
         "rag_v4_dense_bm25_hybrid",
         "rag_v5_hybrid_fusion",
+        "rag_v5a_weighted_rrf",
+        "rag_v5b_bm25_top5_rrf",
+        "rag_v5c_dense_bm25_boost",
+        "rag_v5d_dense_bm25_light_boost",
         "rag_v6_hybrid_fusion_rule_rerank",
         "rag_v7_current",
     ]
@@ -74,6 +85,95 @@ def test_v4_ranking_uses_best_available_channel_score():
     ranked = rank_candidates_for_v4([weak, dense, sparse])
 
     assert [item.faq_id for item in ranked] == ["sparse", "dense", "weak"]
+
+
+def test_weighted_rrf_can_downweight_sparse_noise():
+    dense = candidate("dense", dense_score=0.7)
+    sparse_noise = candidate("sparse_noise", sparse_score=1.0)
+
+    ranked = merge_candidates_weighted_rrf(
+        ([dense], 1.0),
+        ([sparse_noise], 0.2),
+    )
+
+    assert [item.faq_id for item in ranked] == ["dense", "sparse_noise"]
+
+
+def test_dense_with_bm25_boost_prefers_dense_order_and_adds_same_faq_signal():
+    target = candidate("target", dense_score=0.8)
+    other = candidate("other", dense_score=0.82)
+    sparse_same_faq = candidate("target", sparse_score=1.0)
+    sparse_only = candidate("sparse_only", sparse_score=1.0)
+
+    ranked = rank_dense_with_bm25_boost([target, other], [sparse_same_faq, sparse_only])
+
+    assert [item.faq_id for item in ranked[:2]] == ["target", "other"]
+    assert any(reason.startswith("bm25_same_faq_boost") for reason in ranked[0].rerank_reasons)
+    assert ranked[-1].faq_id == "sparse_only"
+
+
+@pytest.mark.asyncio
+async def test_eval_v7_uses_dense_primary_merge_like_production_pipeline(monkeypatch):
+    from app.rag.retrieval.hybrid import RetrievalChannels
+
+    dense = candidate("dense", dense_score=0.8)
+    sparse = candidate("dense", sparse_score=1.0)
+    document = RAGDocument(
+        id="dense",
+        faq_id="dense",
+        doc_type="faq",
+        category="物流配送",
+        question="生鲜拒收规则",
+        text="生鲜暂不支持拒收。",
+        url="https://example.com/dense",
+    )
+    evaluator = RagEvaluator(
+        faq_documents=[document],
+        chunk_documents=[document],
+        top_k=1,
+        dense_top_k=5,
+        sparse_top_k=5,
+        max_context_chars=1000,
+    )
+    evaluator.embed_for_eval = AsyncMock(return_value=[0.1, 0.2])
+    seen = {}
+
+    def fake_retrieve_candidates(plan, query_embedding, *, dense_top_k, sparse_top_k):
+        return RetrievalChannels(dense_faq=[dense], dense_chunk=[], sparse=[sparse])
+
+    def fake_merge_candidates_dense_primary(dense_candidates, sparse_candidates, *, same_faq_boost):
+        seen["dense_candidates"] = list(dense_candidates)
+        seen["sparse_candidates"] = list(sparse_candidates)
+        seen["same_faq_boost"] = same_faq_boost
+        return [dense.model_copy(update={"fusion_score": 0.82, "final_score": 0.82})]
+
+    def fake_rerank_candidates(candidates, plan):
+        return candidates
+
+    def fake_select_evidence(candidates, *, query, top_k, max_chars):
+        return ContextSelection(query=query, contexts=candidates[:top_k], coverage="ok", total_chars=0)
+
+    monkeypatch.setattr("scripts.rag_eval.retrieve_candidates", fake_retrieve_candidates)
+    monkeypatch.setattr("scripts.rag_eval.merge_candidates_dense_primary", fake_merge_candidates_dense_primary)
+    monkeypatch.setattr("scripts.rag_eval.rerank_candidates", fake_rerank_candidates)
+    monkeypatch.setattr("scripts.rag_eval.select_evidence", fake_select_evidence)
+
+    case = EvalCase(
+        id="case",
+        query="生鲜商品可以拒收吗",
+        category="物流配送",
+        expected_faq_ids=["dense"],
+        expected_titles=["生鲜拒收规则"],
+        difficulty="hard",
+        tags=[],
+    )
+
+    result = await evaluator.run_version("rag_v7_current", case)
+
+    assert seen["dense_candidates"] == [dense]
+    assert seen["sparse_candidates"] == [sparse]
+    assert seen["same_faq_boost"] == 0.02
+    assert result[0].final_score == 0.82
 
 
 def test_production_like_suite_uses_independent_default_paths():

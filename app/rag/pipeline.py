@@ -6,7 +6,7 @@ from typing import Optional
 
 from app.rag.indexing.embeddings import embed_query
 from app.rag.evidence.selector import select_evidence
-from app.rag.retrieval.fusion import merge_candidates
+from app.rag.retrieval.fusion import merge_candidates_dense_primary
 from app.rag.planning.planner import plan_query
 from app.rag.reranking.rule import rerank_candidates
 from app.rag.retrieval.hybrid import retrieve_candidates
@@ -31,7 +31,14 @@ async def run_rag_pipeline(
         dense_top_k=dense_top_k,
         sparse_top_k=sparse_top_k,
     )
-    merged = merge_candidates(channels.dense_faq, channels.dense_chunk, channels.sparse)
+    # 线上主链路采用评测表现更稳的 V5d 融合方式：
+    # Dense FAQ/Chunk 负责主排序，BM25 只对同 FAQ 命中的 Dense 候选做 0.02 轻量加分。
+    # 这样避免 BM25 噪声结果因为稀疏分数高而挤掉语义召回的正确答案。
+    merged = merge_candidates_dense_primary(
+        [*channels.dense_faq, *channels.dense_chunk],
+        channels.sparse,
+        same_faq_boost=0.02,
+    )
     reranked = rerank_candidates(merged, plan)
     selection = select_evidence(reranked, query=query, top_k=top_k, max_chars=max_context_chars)
 

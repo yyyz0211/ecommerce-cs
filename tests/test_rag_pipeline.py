@@ -103,6 +103,57 @@ def test_merge_candidates_uses_rrf_rank_signal():
     assert merged[1].fusion_score > merged[2].fusion_score
 
 
+def test_dense_primary_merge_uses_bm25_as_light_same_faq_boost_only():
+    from app.rag.retrieval.fusion import merge_candidates_dense_primary
+
+    target = RetrievalCandidate(
+        id="target-chunk",
+        faq_id="target",
+        doc_type="chunk",
+        category="支付发票",
+        question="退款时效",
+        text="退款时效说明。",
+        url="https://example.com/target",
+        dense_score=0.805,
+        sources=["dense_chunk"],
+    )
+    dense_other = target.model_copy(
+        update={
+            "id": "other-chunk",
+            "faq_id": "other",
+            "question": "其他退款规则",
+            "dense_score": 0.82,
+        }
+    )
+    sparse_same_faq = target.model_copy(
+        update={
+            "id": "target-faq",
+            "doc_type": "faq",
+            "dense_score": None,
+            "sparse_score": 1.0,
+            "sources": ["bm25"],
+        }
+    )
+    sparse_only = target.model_copy(
+        update={
+            "id": "sparse-only",
+            "faq_id": "sparse-only",
+            "dense_score": None,
+            "sparse_score": 1.0,
+            "sources": ["bm25"],
+        }
+    )
+
+    merged = merge_candidates_dense_primary([target, dense_other], [sparse_same_faq, sparse_only])
+
+    assert [candidate.faq_id for candidate in merged[:3]] == ["target", "other", "sparse-only"]
+    assert merged[0].final_score == 0.825
+    assert merged[0].sparse_score == 1.0
+    assert merged[0].sources == ["dense_chunk", "bm25"]
+    assert any(reason.startswith("bm25_same_faq_boost") for reason in merged[0].rerank_reasons)
+    assert merged[-1].final_score == 0.2
+
+
 def test_dense_retrieval_uses_category_as_soft_signal_only(monkeypatch):
     from app.rag.planning.planner import plan_query
     from app.rag.retrieval.dense import retrieve_dense
@@ -182,6 +233,49 @@ async def test_pipeline_composes_retrieval_fusion_rerank_and_selection(monkeypat
     assert len(trace.merged) == 1
     assert trace.reranked[0].id == "dense"
     assert trace.selection.contexts[0].id == "dense"
+
+
+@pytest.mark.asyncio
+async def test_pipeline_uses_dense_primary_merge_for_v7_fusion_step(monkeypatch):
+    from app.rag.pipeline import run_rag_pipeline
+    from app.rag.retrieval.hybrid import RetrievalChannels
+
+    dense = RetrievalCandidate(
+        id="dense",
+        faq_id="dense",
+        doc_type="faq",
+        category="物流配送",
+        question="生鲜拒收规则",
+        text="生鲜暂不支持拒收。",
+        url="https://example.com/dense",
+        dense_score=0.8,
+        sources=["dense_faq"],
+    )
+    sparse = dense.model_copy(update={"dense_score": None, "sparse_score": 1.0, "sources": ["bm25"]})
+    seen = {}
+
+    async def fake_embed_query(query: str):
+        return [0.1, 0.2]
+
+    def fake_retrieve_candidates(plan, query_embedding, *, dense_top_k, sparse_top_k):
+        return RetrievalChannels(dense_faq=[dense], dense_chunk=[], sparse=[sparse])
+
+    def fake_merge_candidates_dense_primary(dense_candidates, sparse_candidates, *, same_faq_boost):
+        seen["dense_candidates"] = list(dense_candidates)
+        seen["sparse_candidates"] = list(sparse_candidates)
+        seen["same_faq_boost"] = same_faq_boost
+        return [dense.model_copy(update={"final_score": 0.82, "sources": ["dense_faq", "bm25"]})]
+
+    monkeypatch.setattr("app.rag.pipeline.embed_query", fake_embed_query)
+    monkeypatch.setattr("app.rag.pipeline.retrieve_candidates", fake_retrieve_candidates)
+    monkeypatch.setattr("app.rag.pipeline.merge_candidates_dense_primary", fake_merge_candidates_dense_primary)
+
+    trace = await run_rag_pipeline("生鲜商品可以拒收吗？", top_k=1, dense_top_k=5, sparse_top_k=5)
+
+    assert seen["dense_candidates"] == [dense]
+    assert seen["sparse_candidates"] == [sparse]
+    assert seen["same_faq_boost"] == 0.02
+    assert trace.merged[0].final_score == 0.82
 
 
 def test_reranker_prefers_category_and_keyword_overlap():

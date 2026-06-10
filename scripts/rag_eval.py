@@ -35,7 +35,7 @@ from app.rag.evidence.selector import select_evidence
 from app.rag.planning.planner import plan_query
 from app.rag.reranking.rule import rerank_candidates
 from app.rag.retrieval.dense import candidate_from_match
-from app.rag.retrieval.fusion import merge_candidates
+from app.rag.retrieval.fusion import merge_candidates, merge_candidates_dense_primary
 from app.rag.retrieval.hybrid import retrieve_candidates
 from app.rag.schemas import RAGDocument, RetrievalCandidate
 
@@ -63,6 +63,10 @@ EVAL_VERSIONS = [
     EvalVersion("rag_v3_dense_faq_chunk", "RAG-V3 Dense FAQ + Dense Chunk", "同时召回 FAQ 向量和 chunk 向量，按向量分数直接排序。"),
     EvalVersion("rag_v4_dense_bm25_hybrid", "RAG-V4 Dense + BM25 混合检索", "Dense FAQ、Dense Chunk、BM25 多路结果直接拼接，并按通道分数排序。"),
     EvalVersion("rag_v5_hybrid_fusion", "RAG-V5 混合检索 + Fusion", "在 V4 基础上按文档 ID 去重，合并来源和通道分数。"),
+    EvalVersion("rag_v5a_weighted_rrf", "RAG-V5a 加权 RRF", "Dense 通道权重保持 1.0，BM25 通道降权到 0.5，观察是否减少 BM25 噪声。"),
+    EvalVersion("rag_v5b_bm25_top5_rrf", "RAG-V5b BM25 Top5 + RRF", "只取 BM25 前 5 个候选参与 RRF，减少稀疏召回噪声进入融合。"),
+    EvalVersion("rag_v5c_dense_bm25_boost", "RAG-V5c Dense 主排序 + BM25 Boost", "Dense 负责主排序，BM25 只给同 FAQ 命中的 Dense 候选轻量加分。"),
+    EvalVersion("rag_v5d_dense_bm25_light_boost", "RAG-V5d Dense 主排序 + BM25 轻量 Boost", "Dense 负责主排序，BM25 同 FAQ 命中只加 0.02，进一步降低噪声。"),
     EvalVersion("rag_v6_hybrid_fusion_rule_rerank", "RAG-V6 混合检索 + Fusion + Rule Rerank", "在 V5 基础上使用分类、关键词、通道命中等可解释规则重排。"),
     EvalVersion("rag_v7_current", "RAG-V7 当前完整系统", "等价执行当前 run_rag_pipeline 的各组件，包含 query planning、混合检索、fusion、rule rerank 和 evidence selection。"),
 ]
@@ -279,6 +283,100 @@ def rank_fused_candidates(candidates: Iterable[RetrievalCandidate]) -> list[Retr
     return sorted(candidates, key=fusion_score, reverse=True)
 
 
+def merge_candidates_weighted_rrf(
+    *weighted_groups: tuple[Iterable[RetrievalCandidate], float],
+    rrf_k: int = 60,
+) -> list[RetrievalCandidate]:
+    """评测用加权 RRF。
+
+    标准 RRF 默认每个召回通道权重相同。
+    这里允许降低 BM25 权重，用来验证“BM25 是补充信号还是噪声源”。
+    """
+    merged: dict[str, RetrievalCandidate] = {}
+    rrf_scores: dict[str, float] = {}
+
+    for group, weight in weighted_groups:
+        for rank, candidate in enumerate(list(group), start=1):
+            rrf_scores[candidate.id] = rrf_scores.get(candidate.id, 0.0) + weight / (rrf_k + rank)
+            existing = merged.get(candidate.id)
+            if existing is None:
+                merged[candidate.id] = candidate
+                continue
+
+            sources = list(existing.sources)
+            for source in candidate.sources:
+                if source not in sources:
+                    sources.append(source)
+            dense_scores = [score for score in (existing.dense_score, candidate.dense_score) if score is not None]
+            sparse_scores = [score for score in (existing.sparse_score, candidate.sparse_score) if score is not None]
+            merged[candidate.id] = existing.model_copy(
+                update={
+                    "dense_score": max(dense_scores) if dense_scores else None,
+                    "sparse_score": max(sparse_scores) if sparse_scores else None,
+                    "sources": sources,
+                }
+            )
+
+    max_rrf = max(rrf_scores.values(), default=0.0) or 1.0
+    fused = [
+        candidate.model_copy(update={"fusion_score": round(rrf_scores[candidate_id] / max_rrf, 6)})
+        for candidate_id, candidate in merged.items()
+    ]
+    return rank_fused_candidates(fused)
+
+
+def rank_dense_with_bm25_boost(
+    dense_candidates: Iterable[RetrievalCandidate],
+    sparse_candidates: Iterable[RetrievalCandidate],
+    *,
+    same_faq_boost: float = 0.05,
+    sparse_only_weight: float = 0.2,
+) -> list[RetrievalCandidate]:
+    """Dense 主排序实验。
+
+    Dense 当前真实指标最好，因此这里让 Dense 保持主排序。
+    BM25 只做两件事：
+    1. 如果同一个 faq_id 也被 BM25 命中，给 Dense 候选一个小 boost。
+    2. BM25 独有结果保留，但按较低权重排在 Dense 候选后面。
+    """
+    sparse_by_faq: dict[str, RetrievalCandidate] = {}
+    for candidate in sparse_candidates:
+        current = sparse_by_faq.get(candidate.faq_id)
+        if current is None or (candidate.sparse_score or 0.0) > (current.sparse_score or 0.0):
+            sparse_by_faq[candidate.faq_id] = candidate
+
+    ranked_by_id: dict[str, RetrievalCandidate] = {}
+    for candidate in dense_candidates:
+        bm25_match = sparse_by_faq.get(candidate.faq_id)
+        score = candidate.dense_score or 0.0
+        sources = list(candidate.sources)
+        reasons: list[str] = []
+        sparse_score = candidate.sparse_score
+        if bm25_match is not None:
+            score += same_faq_boost
+            sparse_score = bm25_match.sparse_score
+            reasons.append(f"bm25_same_faq_boost:+{same_faq_boost:.3f}")
+            for source in bm25_match.sources:
+                if source not in sources:
+                    sources.append(source)
+        ranked_by_id[candidate.id] = candidate.model_copy(
+            update={
+                "sparse_score": sparse_score,
+                "final_score": round(score, 6),
+                "sources": sources,
+                "rerank_reasons": reasons,
+            }
+        )
+
+    for candidate in sparse_candidates:
+        if candidate.id in ranked_by_id:
+            continue
+        score = sparse_only_weight * (candidate.sparse_score or 0.0)
+        ranked_by_id[candidate.id] = candidate.model_copy(update={"final_score": round(score, 6)})
+
+    return sorted(ranked_by_id.values(), key=lambda item: item.final_score or 0.0, reverse=True)
+
+
 def candidate_to_result(candidate: RetrievalCandidate, rank: int) -> dict[str, Any]:
     return {
         "rank": rank,
@@ -374,6 +472,10 @@ class RagEvaluator:
             "rag_v3_dense_faq_chunk",
             "rag_v4_dense_bm25_hybrid",
             "rag_v5_hybrid_fusion",
+            "rag_v5a_weighted_rrf",
+            "rag_v5b_bm25_top5_rrf",
+            "rag_v5c_dense_bm25_boost",
+            "rag_v5d_dense_bm25_light_boost",
             "rag_v6_hybrid_fusion_rule_rerank",
         }:
             query_embedding = await self.embed_for_eval(case.query)
@@ -409,6 +511,29 @@ class RagEvaluator:
             if version_key == "rag_v5_hybrid_fusion":
                 return rank_fused_candidates(merged)[: self.top_k]
 
+            if version_key == "rag_v5a_weighted_rrf":
+                weighted = merge_candidates_weighted_rrf(
+                    (dense_faq, 1.0),
+                    (dense_chunk, 1.0),
+                    (sparse, 0.5),
+                )
+                return weighted[: self.top_k]
+
+            if version_key == "rag_v5b_bm25_top5_rrf":
+                sparse_top5 = sparse[:5]
+                limited = merge_candidates(dense_faq, dense_chunk, sparse_top5)
+                return rank_fused_candidates(limited)[: self.top_k]
+
+            if version_key == "rag_v5c_dense_bm25_boost":
+                dense_ranked = rank_candidates_by_dense([*dense_faq, *dense_chunk])
+                boosted = rank_dense_with_bm25_boost(dense_ranked, sparse)
+                return boosted[: self.top_k]
+
+            if version_key == "rag_v5d_dense_bm25_light_boost":
+                dense_ranked = rank_candidates_by_dense([*dense_faq, *dense_chunk])
+                boosted = rank_dense_with_bm25_boost(dense_ranked, sparse, same_faq_boost=0.02)
+                return boosted[: self.top_k]
+
             plan = plan_query(case.query)
             return rerank_candidates(merged, plan)[: self.top_k]
 
@@ -421,7 +546,13 @@ class RagEvaluator:
                 dense_top_k=self.dense_top_k,
                 sparse_top_k=self.sparse_top_k,
             )
-            merged = merge_candidates(channels.dense_faq, channels.dense_chunk, channels.sparse)
+            # V7 需要和生产 pipeline 保持一致：
+            # Dense 负责主排序，BM25 只对同 FAQ 命中的候选做 0.02 轻量 boost。
+            merged = merge_candidates_dense_primary(
+                [*channels.dense_faq, *channels.dense_chunk],
+                channels.sparse,
+                same_faq_boost=0.02,
+            )
             reranked = rerank_candidates(merged, plan)
             selection = select_evidence(
                 reranked,
