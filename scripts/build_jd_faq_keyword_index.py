@@ -18,8 +18,8 @@ from app.config import settings
 from app.rag.indexing.keyword_store import build_keyword_index
 from app.rag.indexing.loader import load_documents, load_faq_documents
 
-DEFAULT_CLEAN_INPUT = Path("data/jd_faq_clean.jsonl")
-DEFAULT_CHUNKS_INPUT = Path("data/jd_faq_chunks.jsonl")
+DEFAULT_CLEAN_INPUT = Path("data/jd_faq_clean_keywords.jsonl")
+DEFAULT_CHUNKS_INPUT = Path("data/jd_faq_chunks_keywords.jsonl")
 
 
 def parse_args() -> argparse.Namespace:

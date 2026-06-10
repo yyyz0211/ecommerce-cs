@@ -24,13 +24,34 @@ from app.rag.indexing.embeddings import embed_texts
 from app.rag.indexing.loader import load_documents, load_faq_documents
 from app.rag.indexing.vector_store import add_documents, reset_collection
 
-DEFAULT_CLEAN_INPUT = Path("data/jd_faq_clean.jsonl")
-DEFAULT_CHUNKS_INPUT = Path("data/jd_faq_chunks.jsonl")
+DEFAULT_CLEAN_INPUT = Path("data/jd_faq_clean_keywords.jsonl")
+DEFAULT_CHUNKS_INPUT = Path("data/jd_faq_chunks_keywords.jsonl")
 
 
 def batched(items, batch_size: int):
     for index in range(0, len(items), batch_size):
         yield items[index : index + batch_size]
+
+
+def embedding_text_for_document(document) -> str:
+    """构造送去 embedding 模型的文本。
+
+    Chroma 最终保存的 document 仍然是原文 text；
+    这里额外把分类、问题、关键词拼进去，只是为了让向量更理解这条 FAQ 的主题。
+
+    例子：
+    原文里可能只写“在安全中心操作”，但标题和关键词里有“修改支付密码”。
+    拼接后 embedding 更容易把“我想改支付密码”召回到这条 FAQ。
+    """
+    parts = [
+        f"分类：{document.category}",
+        f"问题：{document.question}",
+    ]
+    if document.keywords:
+        # keywords 是离线归一化后的标准业务概念，比长正文更稳定。
+        parts.append(f"关键词：{'，'.join(document.keywords)}")
+    parts.append(document.text)
+    return "\n".join(parts)
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,7 +77,7 @@ def index_documents(label: str, documents, *, collection: str, persist_dir: str,
     total = len(documents)
     indexed = 0
     for batch in batched(documents, batch_size):
-        embeddings = embed_texts([doc.text for doc in batch])
+        embeddings = embed_texts([embedding_text_for_document(doc) for doc in batch])
         add_documents(batch, embeddings, collection_name=collection, persist_dir=persist_dir)
         indexed += len(batch)
         print(f"已索引 {label} {indexed}/{total}")

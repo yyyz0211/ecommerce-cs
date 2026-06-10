@@ -28,7 +28,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from app.config import settings
 from app.rag.indexing.embeddings import embed_query, embed_texts
-from app.rag.indexing.keyword_store import KeywordSearchIndex, tokenize
+from app.rag.indexing.keyword_store import KeywordSearchIndex, tokenize, tokenize_document
 from app.rag.indexing.loader import load_documents, load_faq_documents
 from app.rag.indexing.vector_store import query_documents
 from app.rag.evidence.selector import select_evidence
@@ -55,6 +55,8 @@ class EvalVersion:
 
 
 EVAL_VERSIONS = [
+    # 这些版本用于做消融实验：不是线上都有独立实现，而是逐步打开能力。
+    # 通过 V0 到 V7 的指标变化，可以判断 BM25、Dense、Fusion、Rerank 各自是否有效。
     EvalVersion("rag_v0_keyword", "RAG-V0 关键词基线", "字符串关键词重叠排序，不使用 BM25、向量、融合或重排。"),
     EvalVersion("rag_v1_bm25_faq", "RAG-V1 BM25 FAQ", "只在 FAQ 级别文档上做 BM25 检索。"),
     EvalVersion("rag_v2_dense_chunk", "RAG-V2 Dense Chunk", "只在 chunk 向量集合上做语义召回。"),
@@ -189,7 +191,11 @@ def document_to_candidate(
 
 
 def keyword_overlap_score(query: str, candidate: RetrievalCandidate) -> float:
-    """V0 使用的简单关键词重叠得分。"""
+    """V0 使用的简单关键词重叠得分。
+
+    这是最低成本基线：不调用 embedding，不建 BM25，只看 query 和 FAQ 字面 token 是否重叠。
+    如果复杂系统还不如它，通常说明融合、重排或 query planning 有回归。
+    """
     query_tokens = set(tokenize(query))
     if not query_tokens:
         return 0.0
@@ -214,11 +220,14 @@ def run_keyword_baseline(query: str, faq_documents: list[RAGDocument], *, top_k:
 
 
 def build_keyword_search_index(documents: list[RAGDocument]) -> KeywordSearchIndex:
-    tokenized_corpus = [tokenize(f"{doc.category} {doc.question} {doc.text}") for doc in documents]
+    # 评测时直接从传入文档构建 BM25，避免读取磁盘上的旧 pkl。
+    # 这样结果严格对应 --faq-input / --chunks-input 指定的数据。
+    tokenized_corpus = [tokenize_document(doc) for doc in documents]
     return KeywordSearchIndex(documents, tokenized_corpus)
 
 
 def run_bm25(query: str, index: KeywordSearchIndex, *, top_k: int, source: str = "bm25") -> list[RetrievalCandidate]:
+    # source 会被 fusion/rerank 用来判断候选来自哪一路召回。
     candidates = index.search(query, top_k=top_k)
     return [candidate.model_copy(update={"sources": [source]}) for candidate in candidates]
 
@@ -239,7 +248,11 @@ def rank_candidates_by_dense(candidates: Iterable[RetrievalCandidate]) -> list[R
 
 
 def rank_candidates_for_v4(candidates: Iterable[RetrievalCandidate]) -> list[RetrievalCandidate]:
-    """V4 对未融合的多路召回结果做朴素排序。"""
+    """V4 对未融合的多路召回结果做朴素排序。
+
+    这里还没有 RRF，只是把 dense 和 BM25 候选拼起来按通道分数排序。
+    如果 V4 明显差于 V5，通常说明“直接混用不同通道分数”不可靠。
+    """
     return sorted(
         candidates,
         key=lambda item: (
@@ -456,6 +469,12 @@ def pct(value: float) -> str:
 
 
 def aggregate_version(result: VersionEvalResult) -> dict[str, Any]:
+    """汇总单个版本的整体指标。
+
+    Recall@K：期望 FAQ 是否出现在前 K 条结果中。
+    MRR：第一个正确答案越靠前，分数越高。
+    category_accuracy_at_1：首条结果分类是否与标注分类一致。
+    """
     total = len(result.case_results)
     if total == 0:
         return {
@@ -661,6 +680,11 @@ def build_report(
             )
         )
 
+    try:
+        json_output_display = json_output.resolve().relative_to(ROOT_DIR)
+    except ValueError:
+        json_output_display = json_output
+
     lines.extend(
         [
             "",
@@ -670,7 +694,7 @@ def build_report(
             f"python3 scripts/rag_eval.py --suite {suite}",
             "```",
             "",
-            f"机器可读原始结果保存在 `{json_output.relative_to(ROOT_DIR)}`。",
+            f"机器可读原始结果保存在 `{json_output_display}`。",
         ]
     )
     return "\n".join(lines) + "\n"

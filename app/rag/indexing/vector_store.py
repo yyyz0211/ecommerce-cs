@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -71,6 +72,8 @@ def add_documents(
                 "question": doc.question,
                 "url": doc.url,
                 "section_title": doc.section_title or "",
+                "keywords": json.dumps(doc.keywords, ensure_ascii=False),
+                "keyword_version": doc.keyword_version or "",
             }
             for doc in documents
         ],
@@ -101,6 +104,10 @@ def query_documents(
 
     matches: list[RAGMatch] = []
     for doc_id, text, metadata, distance in zip(ids, docs, metadatas, distances):
+        try:
+            keywords = json.loads(str(metadata.get("keywords") or "[]"))
+        except json.JSONDecodeError:
+            keywords = []
         # Chroma 的余弦距离越低越好；这里换算出的 score 只用于展示/过滤，
         # 不是校准后的概率。
         score = None if distance is None else max(0.0, 1.0 - float(distance))
@@ -117,6 +124,8 @@ def query_documents(
                 url=str(metadata.get("url", "")),
                 source=str(metadata.get("source", "京东帮助中心")),
                 section_title=str(metadata.get("section_title") or "") or None,
+                keywords=[str(keyword) for keyword in keywords],
+                keyword_version=str(metadata.get("keyword_version") or "") or None,
                 distance=float(distance) if distance is not None else None,
                 score=score,
                 retrieval_source=None,

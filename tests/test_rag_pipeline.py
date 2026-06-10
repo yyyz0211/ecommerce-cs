@@ -222,6 +222,34 @@ def test_reranker_prefers_category_and_keyword_overlap():
     assert any("keyword_overlap" in reason for reason in ranked[0].rerank_reasons)
 
 
+def test_reranker_records_matched_document_keywords():
+    from app.rag.schemas import QueryAnalysis
+    from app.rag.reranking.rule import rerank_candidates
+
+    analysis = QueryAnalysis(
+        raw_query="怎么改支付密码",
+        normalized_query="怎么改支付密码",
+        category="账户管理",
+        keywords=["修改支付密码", "支付密码"],
+    )
+    candidate = RetrievalCandidate(
+        id="payment-password",
+        faq_id="payment-password",
+        doc_type="faq",
+        category="账户管理",
+        question="如何修改支付密码？",
+        text="在账户安全中修改。",
+        url="https://example.com/payment-password",
+        keywords=["修改支付密码", "支付密码", "账户安全"],
+        fusion_score=1.0,
+        sources=["dense_faq", "bm25"],
+    )
+
+    ranked = rerank_candidates([candidate], analysis)
+
+    assert ranked[0].matched_keywords == ["修改支付密码", "支付密码"]
+
+
 def test_context_selector_keeps_diverse_faqs_under_budget():
     from app.rag.evidence.selector import select_contexts
 

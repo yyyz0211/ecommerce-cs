@@ -32,6 +32,7 @@ class Settings:
     CHROMA_CHUNK_COLLECTION: str = os.getenv("CHROMA_CHUNK_COLLECTION", CHROMA_COLLECTION)
     CHROMA_DOC_COLLECTION: str = os.getenv("CHROMA_DOC_COLLECTION", "jd_faq_docs")
     BM25_INDEX_PATH: str = os.getenv("BM25_INDEX_PATH", "data/jd_faq_bm25.pkl")
+    KEYWORD_VOCAB_PATH: str = os.getenv("KEYWORD_VOCAB_PATH", "data/jd_faq_keyword_vocab.json")
 
     # ── 摘要压缩专用配置（默认复用主链路，可单独配以隔离速率配额）──
     LLM_SUMMARY_MODEL: str = os.getenv("LLM_SUMMARY_MODEL", LLM_MODEL)

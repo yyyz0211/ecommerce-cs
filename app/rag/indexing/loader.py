@@ -53,6 +53,8 @@ def load_faq_documents(path: Path) -> list[RAGDocument]:
                         question=str(payload["question"]),
                         text=str(payload.get("text") or payload.get("answer") or ""),
                         url=str(payload["url"]),
+                        keywords=list(payload.get("keywords") or []),
+                        keyword_version=payload.get("keyword_version"),
                     )
                 )
             except Exception as exc:

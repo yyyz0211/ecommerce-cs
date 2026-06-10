@@ -42,6 +42,8 @@ async def search_faq_knowledge(
                 "url": item.url,
                 "score": item.final_score,
                 "sources": item.sources,
+                "keywords": item.keywords,
+                "matched_keywords": item.matched_keywords,
                 "reasons": item.rerank_reasons,
             }
             for item in contexts

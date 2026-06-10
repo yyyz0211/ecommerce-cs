@@ -21,6 +21,8 @@ class RAGDocument(BaseModel):
     text: str
     url: str
     section_title: Optional[str] = None
+    keywords: list[str] = Field(default_factory=list)
+    keyword_version: Optional[str] = None
 
 
 class RAGMatch(BaseModel):
@@ -37,6 +39,8 @@ class RAGMatch(BaseModel):
     url: str
     source: str = "京东帮助中心"
     section_title: Optional[str] = None
+    keywords: list[str] = Field(default_factory=list)
+    keyword_version: Optional[str] = None
     distance: Optional[float] = None
     score: Optional[float] = Field(default=None, description="由 distance 换算出的展示分数。")
     retrieval_source: Optional[str] = Field(default=None, description="召回来源：dense_faq、dense_chunk 或 bm25。")
@@ -90,6 +94,9 @@ class RetrievalCandidate(BaseModel):
     text: str
     url: str
     section_title: Optional[str] = None
+    keywords: list[str] = Field(default_factory=list)
+    keyword_version: Optional[str] = None
+    matched_keywords: list[str] = Field(default_factory=list)
     dense_score: Optional[float] = None
     sparse_score: Optional[float] = None
     fusion_score: Optional[float] = Field(default=None, description="RRF 融合后的归一化分数。")

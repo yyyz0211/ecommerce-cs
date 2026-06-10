@@ -341,8 +341,11 @@ async def _execute_tool(tool_name: str, tool_args: dict, db: AsyncSession, user_
         for index, item in enumerate(matches, start=1):
             content = item["content"]
             preview = content[:500] + "..." if len(content) > 500 else content
+            matched_keywords = "、".join(item.get("matched_keywords") or [])
+            keyword_line = f"命中关键词：{matched_keywords}\n" if matched_keywords else ""
             lines.append(
                 f"{index}. {item['title']}（{item['category']}）\n"
+                f"{keyword_line}"
                 f"{preview}\n"
                 f"来源：{item['url']}"
             )

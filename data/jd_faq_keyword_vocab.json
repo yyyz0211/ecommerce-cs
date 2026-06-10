@@ -1,0 +1,1617 @@
+{
+  "version": "jd_faq_keywords_v1",
+  "document_count": 334,
+  "keyword_count": 65,
+  "keywords": [
+    {
+      "id": "after_sale.return_goods",
+      "canonical": "退货",
+      "category": "售后政策",
+      "aliases": [
+        "申请退货",
+        "退回商品",
+        "退换货"
+      ],
+      "boost": 1.1,
+      "document_count": 99,
+      "sample_faq_ids": [
+        "dbff6260a3861784",
+        "111510f969276536",
+        "b31766d7de63c684",
+        "7b29b0fc27d23976",
+        "8470435bc30d37d3"
+      ],
+      "sample_questions": [
+        "京东自营上门取件收费标准及收费方式",
+        "京东售后的服务总则是什么？",
+        "京东自营商品售后服务细则是什么？",
+        "申请退换货或保修，没有发票可以申请吗？",
+        "京东自营商品7天无理由退货标准"
+      ]
+    },
+    {
+      "id": "after_sale.exchange_goods",
+      "canonical": "换货",
+      "category": "售后政策",
+      "aliases": [
+        "申请换货",
+        "退换货",
+        "换新"
+      ],
+      "boost": 1.1,
+      "document_count": 80,
+      "sample_faq_ids": [
+        "dbff6260a3861784",
+        "111510f969276536",
+        "7b29b0fc27d23976",
+        "cba03ae8e2ed5fea",
+        "0240070f2d143d66"
+      ],
+      "sample_questions": [
+        "京东自营上门取件收费标准及收费方式",
+        "京东售后的服务总则是什么？",
+        "申请退换货或保修，没有发票可以申请吗？",
+        "京东发错货，该怎么办？",
+        "我的商品是否可以退换货？为什么我的商品无法退货？"
+      ]
+    },
+    {
+      "id": "after_sale.quality_issue",
+      "canonical": "商品质量问题",
+      "category": "售后政策",
+      "aliases": [
+        "质量问题",
+        "功能性故障",
+        "性能故障"
+      ],
+      "boost": 1.1,
+      "document_count": 62,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "b31766d7de63c684",
+        "946754d42658f8fc",
+        "e8d79a22031f4fe3",
+        "21c129356b3bb68b"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "京东自营商品售后服务细则是什么？",
+        "为什么我不能退换货？",
+        "个护化妆类商品售后服务细则（自营）",
+        "手机、数码类商品售后服务细则（自营）"
+      ]
+    },
+    {
+      "id": "after_sale.refund",
+      "canonical": "退款",
+      "category": "售后政策",
+      "aliases": [
+        "退钱",
+        "钱退回",
+        "款项退回"
+      ],
+      "boost": 0.95,
+      "document_count": 62,
+      "sample_faq_ids": [
+        "dbff6260a3861784",
+        "111510f969276536",
+        "8470435bc30d37d3",
+        "946754d42658f8fc",
+        "e8d79a22031f4fe3"
+      ],
+      "sample_questions": [
+        "京东自营上门取件收费标准及收费方式",
+        "京东售后的服务总则是什么？",
+        "京东自营商品7天无理由退货标准",
+        "为什么我不能退换货？",
+        "个护化妆类商品售后服务细则（自营）"
+      ]
+    },
+    {
+      "id": "after_sale.no_reason_return",
+      "canonical": "七天无理由",
+      "category": "售后政策",
+      "aliases": [
+        "7天无理由",
+        "无理由退货",
+        "七日无理由"
+      ],
+      "boost": 1.25,
+      "document_count": 49,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "8470435bc30d37d3",
+        "e8d79a22031f4fe3",
+        "21c129356b3bb68b",
+        "0c045c5839412255"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "京东自营商品7天无理由退货标准",
+        "个护化妆类商品售后服务细则（自营）",
+        "手机、数码类商品售后服务细则（自营）",
+        "电脑类商品售后服务细则（自营）"
+      ]
+    },
+    {
+      "id": "after_sale.logistics_damage",
+      "canonical": "物流损",
+      "category": "售后政策",
+      "aliases": [
+        "物流损",
+        "运输损坏",
+        "破损",
+        "漏液"
+      ],
+      "boost": 1.05,
+      "document_count": 44,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "0c045c5839412255",
+        "5699b6b2f5cc9cb2",
+        "83753c864a60f70d",
+        "ef6351df4a0184b1"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "电脑类商品售后服务细则（自营）",
+        "家用电器类商品售后服务细则（自营）",
+        "家具、厨具、家装类商品售后服务细则（自营）",
+        "奢侈品类商品售后服务细则（自营）"
+      ]
+    },
+    {
+      "id": "after_sale.repair",
+      "canonical": "返修",
+      "category": "售后政策",
+      "aliases": [
+        "返修",
+        "维修",
+        "检测维修"
+      ],
+      "boost": 1.05,
+      "document_count": 37,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "7b29b0fc27d23976",
+        "cba03ae8e2ed5fea",
+        "0240070f2d143d66",
+        "946754d42658f8fc"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "申请退换货或保修，没有发票可以申请吗？",
+        "京东发错货，该怎么办？",
+        "我的商品是否可以退换货？为什么我的商品无法退货？",
+        "为什么我不能退换货？"
+      ]
+    },
+    {
+      "id": "after_sale.warranty",
+      "canonical": "保修",
+      "category": "售后政策",
+      "aliases": [
+        "保修",
+        "质保",
+        "三包",
+        "全国联保"
+      ],
+      "boost": 1.05,
+      "document_count": 32,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "b31766d7de63c684",
+        "7b29b0fc27d23976",
+        "946754d42658f8fc",
+        "21c129356b3bb68b"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "京东自营商品售后服务细则是什么？",
+        "申请退换货或保修，没有发票可以申请吗？",
+        "为什么我不能退换货？",
+        "手机、数码类商品售后服务细则（自营）"
+      ]
+    },
+    {
+      "id": "after_sale.apply",
+      "canonical": "售后申请",
+      "category": "售后政策",
+      "aliases": [
+        "申请售后",
+        "提交售后",
+        "售后单"
+      ],
+      "boost": 1.1,
+      "document_count": 25,
+      "sample_faq_ids": [
+        "cba03ae8e2ed5fea",
+        "0240070f2d143d66",
+        "6a4ef481b038a714",
+        "15ccbd683acc80ef",
+        "96c27b1c7b4efda2"
+      ],
+      "sample_questions": [
+        "京东发错货，该怎么办？",
+        "我的商品是否可以退换货？为什么我的商品无法退货？",
+        "生鲜类商品拒收/售后服务细则",
+        "什么是180天只换不修服务?（自营商品）",
+        "尺码随心换服务介绍（自营）"
+      ]
+    },
+    {
+      "id": "after_sale.missing_parts",
+      "canonical": "缺件",
+      "category": "售后政策",
+      "aliases": [
+        "缺件",
+        "配件缺失",
+        "少件"
+      ],
+      "boost": 1.05,
+      "document_count": 25,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "d55b86b22fe6d1a7",
+        "77f5b02ba8fc3fbb",
+        "32a8b4ef4df743ab",
+        "c1c670098e12f724"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "京东自营商品售后政策服务总则",
+        "运动户外类商品售后退换货服务细则（三方）",
+        "汽车用品类商品退换货细则（三方）",
+        "大家具退换货服务细则（三方）"
+      ]
+    },
+    {
+      "id": "after_sale.invoice_warranty_card",
+      "canonical": "三包凭证",
+      "category": "售后政策",
+      "aliases": [
+        "三包凭证",
+        "保修卡",
+        "质保证书"
+      ],
+      "boost": 1.05,
+      "document_count": 13,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "b31766d7de63c684",
+        "946754d42658f8fc",
+        "21c129356b3bb68b",
+        "0c045c5839412255"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "京东自营商品售后服务细则是什么？",
+        "为什么我不能退换货？",
+        "手机、数码类商品售后服务细则（自营）",
+        "电脑类商品售后服务细则（自营）"
+      ]
+    },
+    {
+      "id": "after_sale.pickup_fee",
+      "canonical": "取件收费",
+      "category": "售后政策",
+      "aliases": [
+        "取件收费",
+        "上门取件费",
+        "取件费",
+        "收费标准"
+      ],
+      "boost": 1.15,
+      "document_count": 13,
+      "sample_faq_ids": [
+        "dbff6260a3861784",
+        "d55b86b22fe6d1a7",
+        "c1c670098e12f724",
+        "c723afe0b804f259",
+        "a756657f926a4817"
+      ],
+      "sample_questions": [
+        "京东自营上门取件收费标准及收费方式",
+        "京东自营商品售后政策服务总则",
+        "大家具退换货服务细则（三方）",
+        "家用电器售后服务细则（三方）",
+        "鲜花、绿植类商品售后服务细则（三方）"
+      ]
+    },
+    {
+      "id": "after_sale.fresh_goods",
+      "canonical": "生鲜售后",
+      "category": "售后政策",
+      "aliases": [
+        "生鲜",
+        "鲜活易腐",
+        "生鲜商品"
+      ],
+      "boost": 1.05,
+      "document_count": 13,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "b31766d7de63c684",
+        "6a4ef481b038a714",
+        "d55b86b22fe6d1a7",
+        "f6670cf88fb87519"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "京东自营商品售后服务细则是什么？",
+        "生鲜类商品拒收/售后服务细则",
+        "京东自营商品售后政策服务总则",
+        "第三方商家商品售后服务总则"
+      ]
+    },
+    {
+      "id": "after_sale.pickup",
+      "canonical": "上门取件",
+      "category": "售后政策",
+      "aliases": [
+        "上门取件",
+        "上门退货",
+        "快递员取件",
+        "取件单"
+      ],
+      "boost": 1.2,
+      "document_count": 11,
+      "sample_faq_ids": [
+        "dbff6260a3861784",
+        "6a4ef481b038a714",
+        "15ccbd683acc80ef",
+        "96c27b1c7b4efda2",
+        "7207d830f6701a95"
+      ],
+      "sample_questions": [
+        "京东自营上门取件收费标准及收费方式",
+        "生鲜类商品拒收/售后服务细则",
+        "什么是180天只换不修服务?（自营商品）",
+        "尺码随心换服务介绍（自营）",
+        "什么是365天只换不修服务?（自营商品）"
+      ]
+    },
+    {
+      "id": "after_sale.freight_refund",
+      "canonical": "运费退还",
+      "category": "售后政策",
+      "aliases": [
+        "退运费",
+        "运费退还",
+        "返回运费",
+        "退货运费"
+      ],
+      "boost": 1.15,
+      "document_count": 11,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "d55b86b22fe6d1a7",
+        "c1c670098e12f724",
+        "c723afe0b804f259",
+        "f6670cf88fb87519"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "京东自营商品售后政策服务总则",
+        "大家具退换货服务细则（三方）",
+        "家用电器售后服务细则（三方）",
+        "第三方商家商品售后服务总则"
+      ]
+    },
+    {
+      "id": "after_sale.reject_warranty",
+      "canonical": "拒保",
+      "category": "售后政策",
+      "aliases": [
+        "拒保",
+        "不予保修",
+        "不予办理"
+      ],
+      "boost": 1.1,
+      "document_count": 5,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "558fe59d01742378",
+        "d55b86b22fe6d1a7",
+        "f6670cf88fb87519",
+        "8f4c56dce3a6158e"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "钟表首饰类商品售后服务细则（自营）",
+        "京东自营商品售后政策服务总则",
+        "第三方商家商品售后服务总则",
+        "第三方卖家的售后服务总则是什么？"
+      ]
+    },
+    {
+      "id": "after_sale.expired_warranty",
+      "canonical": "过保",
+      "category": "售后政策",
+      "aliases": [
+        "过保",
+        "超过三包",
+        "超过保修期"
+      ],
+      "boost": 1.05,
+      "document_count": 5,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "946754d42658f8fc",
+        "d55b86b22fe6d1a7",
+        "f6670cf88fb87519",
+        "8f4c56dce3a6158e"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "为什么我不能退换货？",
+        "京东自营商品售后政策服务总则",
+        "第三方商家商品售后服务总则",
+        "第三方卖家的售后服务总则是什么？"
+      ]
+    },
+    {
+      "id": "after_sale.refund_arrival",
+      "canonical": "退款到账",
+      "category": "售后政策",
+      "aliases": [
+        "退款到账",
+        "原路退回",
+        "退回账户",
+        "到账时间"
+      ],
+      "boost": 1.15,
+      "document_count": 3,
+      "sample_faq_ids": [
+        "b1ca68ec67bdcc0b",
+        "ab635683ca812472",
+        "0b57bd1df819a231"
+      ],
+      "sample_questions": [
+        "订单已提交成功，如何付款？",
+        "支付方式有哪些？如何支付？",
+        "退款的时效是多久？"
+      ]
+    },
+    {
+      "id": "after_sale.refund_time",
+      "canonical": "退款时效",
+      "category": "售后政策",
+      "aliases": [
+        "退款的时效",
+        "退款多久",
+        "退款时效多久",
+        "几天到账",
+        "多久到账",
+        "退款一般几天"
+      ],
+      "boost": 1.4,
+      "document_count": 1,
+      "sample_faq_ids": [
+        "0b57bd1df819a231"
+      ],
+      "sample_questions": [
+        "退款的时效是多久？"
+      ]
+    },
+    {
+      "id": "logistics.freight",
+      "canonical": "运费",
+      "category": "物流配送",
+      "aliases": [
+        "运费",
+        "配送费",
+        "快递费",
+        "基础运费"
+      ],
+      "boost": 1.1,
+      "document_count": 70,
+      "sample_faq_ids": [
+        "dbff6260a3861784",
+        "111510f969276536",
+        "b31766d7de63c684",
+        "d55b86b22fe6d1a7",
+        "3654e29de2b2d5e0"
+      ],
+      "sample_questions": [
+        "京东自营上门取件收费标准及收费方式",
+        "京东售后的服务总则是什么？",
+        "京东自营商品售后服务细则是什么？",
+        "京东自营商品售后政策服务总则",
+        "7天无理由退货规则说明（自营）"
+      ]
+    },
+    {
+      "id": "logistics.signed",
+      "canonical": "签收",
+      "category": "物流配送",
+      "aliases": [
+        "签收",
+        "已签收",
+        "实际签收"
+      ],
+      "boost": 1.1,
+      "document_count": 56,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "8470435bc30d37d3",
+        "21c129356b3bb68b",
+        "0c045c5839412255",
+        "da21c6e32d7d1e82"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "京东自营商品7天无理由退货标准",
+        "手机、数码类商品售后服务细则（自营）",
+        "电脑类商品售后服务细则（自营）",
+        "软件、办公类商品售后服务细则（自营）"
+      ]
+    },
+    {
+      "id": "logistics.modify_address",
+      "canonical": "修改收货地址",
+      "category": "物流配送",
+      "aliases": [
+        "修改地址",
+        "改地址",
+        "收货地址",
+        "配送地址"
+      ],
+      "boost": 1.15,
+      "document_count": 23,
+      "sample_faq_ids": [
+        "cbd78cc7d57b5e5a",
+        "c1c670098e12f724",
+        "8438c808a8a179de",
+        "6cf249a1c59f06fd",
+        "9a51ac576222f5ce"
+      ],
+      "sample_questions": [
+        "什么是不满意包退换服务产品？（自营商品）",
+        "大家具退换货服务细则（三方）",
+        "家装建材类商品售后服务细则（三方）",
+        "健身器械类商品售后退换货细则（三方）",
+        "乐器类商品售后退换货服务细则（三方）"
+      ]
+    },
+    {
+      "id": "logistics.reject_delivery",
+      "canonical": "拒收",
+      "category": "物流配送",
+      "aliases": [
+        "拒收",
+        "拒签",
+        "不想收",
+        "不要了"
+      ],
+      "boost": 1.2,
+      "document_count": 19,
+      "sample_faq_ids": [
+        "0c045c5839412255",
+        "ef6351df4a0184b1",
+        "6a4ef481b038a714",
+        "c1c670098e12f724",
+        "c723afe0b804f259"
+      ],
+      "sample_questions": [
+        "电脑类商品售后服务细则（自营）",
+        "奢侈品类商品售后服务细则（自营）",
+        "生鲜类商品拒收/售后服务细则",
+        "大家具退换货服务细则（三方）",
+        "家用电器售后服务细则（三方）"
+      ]
+    },
+    {
+      "id": "logistics.self_pickup",
+      "canonical": "自提",
+      "category": "物流配送",
+      "aliases": [
+        "自提",
+        "自提点",
+        "上门自提"
+      ],
+      "boost": 1.1,
+      "document_count": 17,
+      "sample_faq_ids": [
+        "dbff6260a3861784",
+        "111510f969276536",
+        "d55b86b22fe6d1a7",
+        "c1c670098e12f724",
+        "c723afe0b804f259"
+      ],
+      "sample_questions": [
+        "京东自营上门取件收费标准及收费方式",
+        "京东售后的服务总则是什么？",
+        "京东自营商品售后政策服务总则",
+        "大家具退换货服务细则（三方）",
+        "家用电器售后服务细则（三方）"
+      ]
+    },
+    {
+      "id": "logistics.large_item",
+      "canonical": "大件配送",
+      "category": "物流配送",
+      "aliases": [
+        "大件",
+        "大件商品",
+        "冰箱",
+        "洗衣机",
+        "空调"
+      ],
+      "boost": 1.05,
+      "document_count": 16,
+      "sample_faq_ids": [
+        "dbff6260a3861784",
+        "5699b6b2f5cc9cb2",
+        "c1c670098e12f724",
+        "c723afe0b804f259",
+        "6cf249a1c59f06fd"
+      ],
+      "sample_questions": [
+        "京东自营上门取件收费标准及收费方式",
+        "家用电器类商品售后服务细则（自营）",
+        "大家具退换货服务细则（三方）",
+        "家用电器售后服务细则（三方）",
+        "健身器械类商品售后退换货细则（三方）"
+      ]
+    },
+    {
+      "id": "logistics.home_delivery",
+      "canonical": "送货上门",
+      "category": "物流配送",
+      "aliases": [
+        "送货上门",
+        "配送上门",
+        "上门配送"
+      ],
+      "boost": 1.1,
+      "document_count": 14,
+      "sample_faq_ids": [
+        "dbff6260a3861784",
+        "c1c670098e12f724",
+        "a756657f926a4817",
+        "8438c808a8a179de",
+        "6cf249a1c59f06fd"
+      ],
+      "sample_questions": [
+        "京东自营上门取件收费标准及收费方式",
+        "大家具退换货服务细则（三方）",
+        "鲜花、绿植类商品售后服务细则（三方）",
+        "家装建材类商品售后服务细则（三方）",
+        "健身器械类商品售后退换货细则（三方）"
+      ]
+    },
+    {
+      "id": "logistics.delivery_area",
+      "canonical": "配送范围",
+      "category": "物流配送",
+      "aliases": [
+        "配送范围",
+        "支持配送",
+        "无法配送",
+        "配送区域"
+      ],
+      "boost": 1.1,
+      "document_count": 12,
+      "sample_faq_ids": [
+        "add8ac4924cf15ff",
+        "9eda61529671087f",
+        "80e07408367ba119",
+        "c211cb26d220dd1c",
+        "3c91b563c15f33d1"
+      ],
+      "sample_questions": [
+        "我的收货地址支不支持211配送？",
+        "我所在的地区支不支持隔日达服务？",
+        "211限时达服务说明",
+        "大家电211限时达服务说明",
+        "次日达服务说明"
+      ]
+    },
+    {
+      "id": "logistics.delivery_time",
+      "canonical": "配送时效",
+      "category": "物流配送",
+      "aliases": [
+        "配送时效",
+        "送达时间",
+        "多久送到",
+        "预计送达"
+      ],
+      "boost": 1.15,
+      "document_count": 10,
+      "sample_faq_ids": [
+        "a756657f926a4817",
+        "8f1287ffd219a005",
+        "2fff257c204d1208",
+        "952b30cf06492740",
+        "3baf09e95962238f"
+      ],
+      "sample_questions": [
+        "鲜花、绿植类商品售后服务细则（三方）",
+        "送达时效服务说明",
+        "我的包裹几天可以收到？",
+        "极速达（自营）服务说明",
+        "京东配送服务说明（京邦达配送）"
+      ]
+    },
+    {
+      "id": "logistics.tracking",
+      "canonical": "物流查询",
+      "category": "物流配送",
+      "aliases": [
+        "物流查询",
+        "查物流",
+        "物流信息",
+        "配送信息"
+      ],
+      "boost": 1.15,
+      "document_count": 9,
+      "sample_faq_ids": [
+        "2fff257c204d1208",
+        "3baf09e95962238f",
+        "143c79326da13ba2",
+        "51b42116db2be7f5",
+        "27d343d2971d0dfb"
+      ],
+      "sample_questions": [
+        "我的包裹几天可以收到？",
+        "京东配送服务说明（京邦达配送）",
+        "京东第三方配送服务说明",
+        "第三方商家发货时效说明",
+        "如何查询物流信息？"
+      ]
+    },
+    {
+      "id": "logistics.211",
+      "canonical": "211限时达",
+      "category": "物流配送",
+      "aliases": [
+        "211限时达",
+        "211",
+        "限时达"
+      ],
+      "boost": 1.2,
+      "document_count": 7,
+      "sample_faq_ids": [
+        "62325c9bb83dfce2",
+        "7bfb2c4e1ef30f1a",
+        "add8ac4924cf15ff",
+        "80e07408367ba119",
+        "c211cb26d220dd1c"
+      ],
+      "sample_questions": [
+        "什么是京东金采？",
+        "如何开通京东金采？",
+        "我的收货地址支不支持211配送？",
+        "211限时达服务说明",
+        "大家电211限时达服务说明"
+      ]
+    },
+    {
+      "id": "logistics.shipping_time",
+      "canonical": "发货时间",
+      "category": "物流配送",
+      "aliases": [
+        "发货时间",
+        "什么时候发货",
+        "多久发货"
+      ],
+      "boost": 1.15,
+      "document_count": 4,
+      "sample_faq_ids": [
+        "a756657f926a4817",
+        "892197290f187d13",
+        "a39f9e523a786e86",
+        "51b42116db2be7f5"
+      ],
+      "sample_questions": [
+        "鲜花、绿植类商品售后服务细则（三方）",
+        "农资退换货服务细则（三方）",
+        "发货与签收规范",
+        "第三方商家发货时效说明"
+      ]
+    },
+    {
+      "id": "logistics.jd_precise",
+      "canonical": "京准达",
+      "category": "物流配送",
+      "aliases": [
+        "京准达",
+        "精准达"
+      ],
+      "boost": 1.2,
+      "document_count": 2,
+      "sample_faq_ids": [
+        "36612d3aae092199",
+        "6d4661ea662605f5"
+      ],
+      "sample_questions": [
+        "什么是京准达？",
+        "消费者购买京东自营商品运费收取标准"
+      ]
+    },
+    {
+      "id": "logistics.abnormal",
+      "canonical": "快递异常",
+      "category": "物流配送",
+      "aliases": [
+        "快递异常",
+        "物流异常",
+        "配送异常",
+        "未收到货"
+      ],
+      "boost": 1.1,
+      "document_count": 1,
+      "sample_faq_ids": [
+        "c8bc32009065e420"
+      ],
+      "sample_questions": [
+        "第三方商品“坏损包退”服务说明"
+      ]
+    },
+    {
+      "id": "logistics.pickup_locker",
+      "canonical": "自提柜",
+      "category": "物流配送",
+      "aliases": [
+        "自提柜",
+        "智能柜",
+        "取件柜"
+      ],
+      "boost": 1.05,
+      "document_count": 1,
+      "sample_faq_ids": [
+        "f5e142d75428d0ec"
+      ],
+      "sample_questions": [
+        "自提点/自提柜可以保留货物几天？"
+      ]
+    },
+    {
+      "id": "logistics.appointment",
+      "canonical": "配送预约",
+      "category": "物流配送",
+      "aliases": [
+        "预约配送",
+        "配送预约",
+        "预约送货"
+      ],
+      "boost": 1.1,
+      "document_count": 1,
+      "sample_faq_ids": [
+        "36612d3aae092199"
+      ],
+      "sample_questions": [
+        "什么是京准达？"
+      ]
+    },
+    {
+      "id": "invoice.invoice",
+      "canonical": "发票",
+      "category": "支付发票",
+      "aliases": [
+        "发票",
+        "票据"
+      ],
+      "boost": 1.05,
+      "document_count": 49,
+      "sample_faq_ids": [
+        "dbff6260a3861784",
+        "111510f969276536",
+        "b31766d7de63c684",
+        "7b29b0fc27d23976",
+        "946754d42658f8fc"
+      ],
+      "sample_questions": [
+        "京东自营上门取件收费标准及收费方式",
+        "京东售后的服务总则是什么？",
+        "京东自营商品售后服务细则是什么？",
+        "申请退换货或保修，没有发票可以申请吗？",
+        "为什么我不能退换货？"
+      ]
+    },
+    {
+      "id": "payment.method",
+      "canonical": "支付方式",
+      "category": "支付发票",
+      "aliases": [
+        "支付方式",
+        "付款方式",
+        "如何支付",
+        "怎么支付"
+      ],
+      "boost": 1.2,
+      "document_count": 37,
+      "sample_faq_ids": [
+        "3fb06418c697b2ad",
+        "cbd78cc7d57b5e5a",
+        "707f1d662b380510",
+        "b1ca68ec67bdcc0b",
+        "ab635683ca812472"
+      ],
+      "sample_questions": [
+        "30天自由换服务介绍（自营）",
+        "什么是不满意包退换服务产品？（自营商品）",
+        "为什么无法享受第三方卖家闪电退款服务?",
+        "订单已提交成功，如何付款？",
+        "支付方式有哪些？如何支付？"
+      ]
+    },
+    {
+      "id": "payment.baitiao",
+      "canonical": "白条",
+      "category": "支付发票",
+      "aliases": [
+        "白条",
+        "京东白条",
+        "打白条"
+      ],
+      "boost": 1.2,
+      "document_count": 37,
+      "sample_faq_ids": [
+        "b1ca68ec67bdcc0b",
+        "ab635683ca812472",
+        "83848591694baaa7",
+        "0b57bd1df819a231",
+        "0273ca7323fa02fb"
+      ],
+      "sample_questions": [
+        "订单已提交成功，如何付款？",
+        "支付方式有哪些？如何支付？",
+        "付款码可支持哪些支付方式，如何使用？",
+        "退款的时效是多久？",
+        "收到京东支付异常扣款通知怎么办？"
+      ]
+    },
+    {
+      "id": "promotion.coupon",
+      "canonical": "优惠券",
+      "category": "支付发票",
+      "aliases": [
+        "优惠券",
+        "券",
+        "优惠码"
+      ],
+      "boost": 1.05,
+      "document_count": 33,
+      "sample_faq_ids": [
+        "6f2ede1b6bbb4769",
+        "3fb06418c697b2ad",
+        "707f1d662b380510",
+        "38d32ab8e1d14349",
+        "3f88aee74708547d"
+      ],
+      "sample_questions": [
+        "礼品箱包类商品售后服务细则（自营）",
+        "30天自由换服务介绍（自营）",
+        "为什么无法享受第三方卖家闪电退款服务?",
+        "订单详情页“商品到手价”说明",
+        "京东支付券退款规则是什么？"
+      ]
+    },
+    {
+      "id": "promotion.jingdou",
+      "canonical": "京豆",
+      "category": "支付发票",
+      "aliases": [
+        "京豆",
+        "豆"
+      ],
+      "boost": 1.05,
+      "document_count": 23,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "946754d42658f8fc",
+        "d55b86b22fe6d1a7",
+        "3fb06418c697b2ad",
+        "cbd78cc7d57b5e5a"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "为什么我不能退换货？",
+        "京东自营商品售后政策服务总则",
+        "30天自由换服务介绍（自营）",
+        "什么是不满意包退换服务产品？（自营商品）"
+      ]
+    },
+    {
+      "id": "payment.cod",
+      "canonical": "货到付款",
+      "category": "支付发票",
+      "aliases": [
+        "货到付款",
+        "到付",
+        "货到付"
+      ],
+      "boost": 1.2,
+      "document_count": 21,
+      "sample_faq_ids": [
+        "15ccbd683acc80ef",
+        "7207d830f6701a95",
+        "3fb06418c697b2ad",
+        "cbd78cc7d57b5e5a",
+        "a756657f926a4817"
+      ],
+      "sample_questions": [
+        "什么是180天只换不修服务?（自营商品）",
+        "什么是365天只换不修服务?（自营商品）",
+        "30天自由换服务介绍（自营）",
+        "什么是不满意包退换服务产品？（自营商品）",
+        "鲜花、绿植类商品售后服务细则（三方）"
+      ]
+    },
+    {
+      "id": "invoice.electronic",
+      "canonical": "电子发票",
+      "category": "支付发票",
+      "aliases": [
+        "电子发票",
+        "电票"
+      ],
+      "boost": 1.1,
+      "document_count": 19,
+      "sample_faq_ids": [
+        "b31766d7de63c684",
+        "e8d79a22031f4fe3",
+        "21c129356b3bb68b",
+        "0c045c5839412255",
+        "50f49a33c671e40d"
+      ],
+      "sample_questions": [
+        "京东自营商品售后服务细则是什么？",
+        "个护化妆类商品售后服务细则（自营）",
+        "手机、数码类商品售后服务细则（自营）",
+        "电脑类商品售后服务细则（自营）",
+        "图书、音乐、影视、教育类商品售后服务细则（自营）"
+      ]
+    },
+    {
+      "id": "payment.online",
+      "canonical": "在线支付",
+      "category": "支付发票",
+      "aliases": [
+        "在线支付",
+        "网上支付",
+        "立即支付"
+      ],
+      "boost": 1.05,
+      "document_count": 12,
+      "sample_faq_ids": [
+        "b1ca68ec67bdcc0b",
+        "ab635683ca812472",
+        "38d32ab8e1d14349",
+        "c00c5d7f2bad59d0",
+        "4a5aac82addc7610"
+      ],
+      "sample_questions": [
+        "订单已提交成功，如何付款？",
+        "支付方式有哪些？如何支付？",
+        "订单详情页“商品到手价”说明",
+        "预售订单可以货到付款吗？",
+        "找不到支持的银行怎么办？"
+      ]
+    },
+    {
+      "id": "payment.installment",
+      "canonical": "分期付款",
+      "category": "支付发票",
+      "aliases": [
+        "分期",
+        "分期付款",
+        "分期支付"
+      ],
+      "boost": 1.1,
+      "document_count": 10,
+      "sample_faq_ids": [
+        "707f1d662b380510",
+        "417a64d7b6dc8974",
+        "f0087f161fe73eca",
+        "1efc236243aef86c",
+        "ff0c4275eaf8dce2"
+      ],
+      "sample_questions": [
+        "为什么无法享受第三方卖家闪电退款服务?",
+        "白条分期要额外收费吗？/白条分期要利息吗？",
+        "京东白条分期付款服务费如何收取？",
+        "订单取消或发生退货时，如何退款及恢复额度？",
+        "什么是京东白条？"
+      ]
+    },
+    {
+      "id": "payment.jdecard",
+      "canonical": "京东E卡",
+      "category": "支付发票",
+      "aliases": [
+        "京东E卡",
+        "E卡",
+        "京东e卡"
+      ],
+      "boost": 1.2,
+      "document_count": 8,
+      "sample_faq_ids": [
+        "b31766d7de63c684",
+        "30685057e78f6a1d",
+        "5eea48d4108501d1",
+        "c9004d0c2ad4a36a",
+        "ec09a241fbaebe61"
+      ],
+      "sample_questions": [
+        "京东自营商品售后服务细则是什么？",
+        "闪购售后-第三方卖家自主售后服务细则",
+        "第三方卖家商品售后退换货服务细则导引",
+        "“京东支付”是什么？",
+        "订单重复支付怎么办？"
+      ]
+    },
+    {
+      "id": "payment.corporate_transfer",
+      "canonical": "对公转账",
+      "category": "支付发票",
+      "aliases": [
+        "对公转账",
+        "公司转账",
+        "银行转账"
+      ],
+      "boost": 1.1,
+      "document_count": 7,
+      "sample_faq_ids": [
+        "b1ca68ec67bdcc0b",
+        "ab635683ca812472",
+        "c2388d752aafcceb",
+        "32cd198908b8f3fb",
+        "a5fdc62870dddbdb"
+      ],
+      "sample_questions": [
+        "订单已提交成功，如何付款？",
+        "支付方式有哪些？如何支付？",
+        "如何使用公司转账？",
+        "企业网银公司转账说明",
+        "线下公司转账说明"
+      ]
+    },
+    {
+      "id": "payment.combined",
+      "canonical": "组合支付",
+      "category": "支付发票",
+      "aliases": [
+        "组合支付",
+        "混合支付",
+        "同时支付"
+      ],
+      "boost": 1.15,
+      "document_count": 6,
+      "sample_faq_ids": [
+        "0b57bd1df819a231",
+        "eceaef5ce900fb41",
+        "b7ba973218912195",
+        "4e12b7aa045c163e",
+        "2ac6b315dcb9bd80"
+      ],
+      "sample_questions": [
+        "退款的时效是多久？",
+        "什么是组合支付？",
+        "支持哪些支付方式组合？",
+        "组合支付如果有部分金额支付失败怎么办？",
+        "是否支持刷卡、现金混合支付？"
+      ]
+    },
+    {
+      "id": "invoice.issue",
+      "canonical": "开发票",
+      "category": "支付发票",
+      "aliases": [
+        "开发票",
+        "开票",
+        "发票开具",
+        "申请发票"
+      ],
+      "boost": 1.2,
+      "document_count": 5,
+      "sample_faq_ids": [
+        "b31766d7de63c684",
+        "30685057e78f6a1d",
+        "5eea48d4108501d1",
+        "54ac7e855de40340",
+        "0a5437dba021206d"
+      ],
+      "sample_questions": [
+        "京东自营商品售后服务细则是什么？",
+        "闪购售后-第三方卖家自主售后服务细则",
+        "第三方卖家商品售后退换货服务细则导引",
+        "使用京东白条付款后，如何开增值税发票？",
+        "我如何下自提的订单？自提流程是什么？"
+      ]
+    },
+    {
+      "id": "payment.jdcard",
+      "canonical": "京东卡",
+      "category": "支付发票",
+      "aliases": [
+        "京东卡"
+      ],
+      "boost": 1.15,
+      "document_count": 4,
+      "sample_faq_ids": [
+        "b31766d7de63c684",
+        "30685057e78f6a1d",
+        "5eea48d4108501d1",
+        "b59fd69f7466e6e6"
+      ],
+      "sample_questions": [
+        "京东自营商品售后服务细则是什么？",
+        "闪购售后-第三方卖家自主售后服务细则",
+        "第三方卖家商品售后退换货服务细则导引",
+        "什么是京豆？"
+      ]
+    },
+    {
+      "id": "payment.failed",
+      "canonical": "支付失败",
+      "category": "支付发票",
+      "aliases": [
+        "支付失败",
+        "付款失败",
+        "无法支付",
+        "付不了"
+      ],
+      "boost": 1.15,
+      "document_count": 3,
+      "sample_faq_ids": [
+        "4e12b7aa045c163e",
+        "fe81406665eba921",
+        "4836a493ad1a245f"
+      ],
+      "sample_questions": [
+        "组合支付如果有部分金额支付失败怎么办？",
+        "为什么支付总是失败？",
+        "京东集运下单操作指引"
+      ]
+    },
+    {
+      "id": "invoice.vat",
+      "canonical": "增值税发票",
+      "category": "支付发票",
+      "aliases": [
+        "增值税发票",
+        "专票",
+        "增票"
+      ],
+      "boost": 1.1,
+      "document_count": 1,
+      "sample_faq_ids": [
+        "54ac7e855de40340"
+      ],
+      "sample_questions": [
+        "使用京东白条付款后，如何开增值税发票？"
+      ]
+    },
+    {
+      "id": "account.real_name",
+      "canonical": "实名认证",
+      "category": "账户管理",
+      "aliases": [
+        "实名认证",
+        "实名",
+        "身份认证"
+      ],
+      "boost": 1.15,
+      "document_count": 32,
+      "sample_faq_ids": [
+        "c9004d0c2ad4a36a",
+        "0066a481a1e059fc",
+        "3c44970c959eaf32",
+        "9d053e6726d200ed",
+        "cb8eac2ff7d5ff54"
+      ],
+      "sample_questions": [
+        "“京东支付”是什么？",
+        "如何提高账户安全等级？",
+        "如何进行实名认证？",
+        "违规京东账号处理规则",
+        "《京东账户注销须知》"
+      ]
+    },
+    {
+      "id": "account.balance",
+      "canonical": "账户余额",
+      "category": "账户管理",
+      "aliases": [
+        "账户余额",
+        "余额",
+        "小金库"
+      ],
+      "boost": 1.05,
+      "document_count": 29,
+      "sample_faq_ids": [
+        "3fb06418c697b2ad",
+        "cbd78cc7d57b5e5a",
+        "b1ca68ec67bdcc0b",
+        "ab635683ca812472",
+        "38d32ab8e1d14349"
+      ],
+      "sample_questions": [
+        "30天自由换服务介绍（自营）",
+        "什么是不满意包退换服务产品？（自营商品）",
+        "订单已提交成功，如何付款？",
+        "支付方式有哪些？如何支付？",
+        "订单详情页“商品到手价”说明"
+      ]
+    },
+    {
+      "id": "account.security",
+      "canonical": "账户安全",
+      "category": "账户管理",
+      "aliases": [
+        "账户安全",
+        "账号安全",
+        "安全中心",
+        "安全设置"
+      ],
+      "boost": 1.1,
+      "document_count": 20,
+      "sample_faq_ids": [
+        "0273ca7323fa02fb",
+        "633657962aa51f68",
+        "7a9361eb2fd18e4c",
+        "0066a481a1e059fc",
+        "23d4a9437ef55557"
+      ],
+      "sample_questions": [
+        "收到京东支付异常扣款通知怎么办？",
+        "为什么我无法使用余额结算？",
+        "如何修改登陆密码？",
+        "如何提高账户安全等级？",
+        "如何找回支付密码？"
+      ]
+    },
+    {
+      "id": "account.payment_password",
+      "canonical": "支付密码",
+      "category": "账户管理",
+      "aliases": [
+        "支付密码",
+        "付款密码"
+      ],
+      "boost": 1.15,
+      "document_count": 14,
+      "sample_faq_ids": [
+        "6dd10c7bacac8751",
+        "a48a0f64895e845f",
+        "3c2ccce7df8f8f78",
+        "68df6bcfae5154ce",
+        "c9004d0c2ad4a36a"
+      ],
+      "sample_questions": [
+        "收到京东支付异常登录通知怎么办？",
+        "使用京东支付被骗怎么办？",
+        "为什么要开通快捷支付，开通有什么好处？",
+        "什么是快捷支付？",
+        "“京东支付”是什么？"
+      ]
+    },
+    {
+      "id": "account.plus",
+      "canonical": "PLUS会员",
+      "category": "账户管理",
+      "aliases": [
+        "PLUS会员",
+        "plus会员",
+        "PLUS",
+        "plus"
+      ],
+      "boost": 1.15,
+      "document_count": 10,
+      "sample_faq_ids": [
+        "111510f969276536",
+        "d55b86b22fe6d1a7",
+        "0273ca7323fa02fb",
+        "b5d2d501778138bb",
+        "6d4661ea662605f5"
+      ],
+      "sample_questions": [
+        "京东售后的服务总则是什么？",
+        "京东自营商品售后政策服务总则",
+        "收到京东支付异常扣款通知怎么办？",
+        "京东白条可以购买哪些商品？",
+        "消费者购买京东自营商品运费收取标准"
+      ]
+    },
+    {
+      "id": "account.cancel",
+      "canonical": "注销账户",
+      "category": "账户管理",
+      "aliases": [
+        "注销账户",
+        "账号注销",
+        "注销账号"
+      ],
+      "boost": 1.15,
+      "document_count": 6,
+      "sample_faq_ids": [
+        "3b4a673bbd5c6e73",
+        "cfae9e235daaf21e",
+        "679bb3577cfdc11c",
+        "cb8eac2ff7d5ff54",
+        "a16bcb1586baf140"
+      ],
+      "sample_questions": [
+        "如何注销京东账号？",
+        "注销账户有什么影响？",
+        "注册了很多京东账户，现在不需要了可以注销吗？",
+        "《京东账户注销须知》",
+        "注销账户后，还有实名信息吗？"
+      ]
+    },
+    {
+      "id": "account.login_password",
+      "canonical": "登录密码",
+      "category": "账户管理",
+      "aliases": [
+        "登录密码",
+        "登陆密码",
+        "账户密码"
+      ],
+      "boost": 1.15,
+      "document_count": 5,
+      "sample_faq_ids": [
+        "6dd10c7bacac8751",
+        "0273ca7323fa02fb",
+        "7a9361eb2fd18e4c",
+        "0aff1e6d18a39c31",
+        "1447c499aa769df1"
+      ],
+      "sample_questions": [
+        "收到京东支付异常登录通知怎么办？",
+        "收到京东支付异常扣款通知怎么办？",
+        "如何修改登陆密码？",
+        "旧的已经实名的账号无法登录怎么办？",
+        "为什么要进行实名认证？"
+      ]
+    },
+    {
+      "id": "account.appeal",
+      "canonical": "账号申诉",
+      "category": "账户管理",
+      "aliases": [
+        "账号申诉",
+        "账户申诉",
+        "申诉"
+      ],
+      "boost": 1.05,
+      "document_count": 3,
+      "sample_faq_ids": [
+        "e16a17556019bd81",
+        "df7ec3f128e0a99b",
+        "12844b8a93c837df"
+      ],
+      "sample_questions": [
+        "已绑定的手机号不能正常使用，如何修改手机号？",
+        "账户申诉需要填写哪些个人信息？",
+        "提交账户申诉后，如何查看审核进度呢？"
+      ]
+    },
+    {
+      "id": "account.modify_phone",
+      "canonical": "修改手机号",
+      "category": "账户管理",
+      "aliases": [
+        "修改手机号",
+        "改手机号",
+        "换绑手机号",
+        "更换手机号"
+      ],
+      "boost": 1.15,
+      "document_count": 2,
+      "sample_faq_ids": [
+        "e16a17556019bd81",
+        "508ead4245c58722"
+      ],
+      "sample_questions": [
+        "已绑定的手机号不能正常使用，如何修改手机号？",
+        "怎么找回我的已经实名的账号？"
+      ]
+    },
+    {
+      "id": "account.modify_payment_password",
+      "canonical": "修改支付密码",
+      "category": "账户管理",
+      "aliases": [
+        "修改支付密码",
+        "改支付密码",
+        "更换支付密码",
+        "支付密码怎么改",
+        "付款密码怎么改"
+      ],
+      "boost": 1.3,
+      "document_count": 2,
+      "sample_faq_ids": [
+        "6dd10c7bacac8751",
+        "d2f078bc12d70092"
+      ],
+      "sample_questions": [
+        "收到京东支付异常登录通知怎么办？",
+        "如何修改支付密码？"
+      ]
+    },
+    {
+      "id": "account.bind_phone",
+      "canonical": "手机号绑定",
+      "category": "账户管理",
+      "aliases": [
+        "绑定手机号",
+        "手机绑定",
+        "绑定手机"
+      ],
+      "boost": 1.1,
+      "document_count": 2,
+      "sample_faq_ids": [
+        "0273ca7323fa02fb",
+        "e16a17556019bd81"
+      ],
+      "sample_questions": [
+        "收到京东支付异常扣款通知怎么办？",
+        "已绑定的手机号不能正常使用，如何修改手机号？"
+      ]
+    },
+    {
+      "id": "account.retrieve_payment_password",
+      "canonical": "找回支付密码",
+      "category": "账户管理",
+      "aliases": [
+        "找回支付密码",
+        "忘记支付密码",
+        "支付密码忘了",
+        "付款密码忘记"
+      ],
+      "boost": 1.3,
+      "document_count": 2,
+      "sample_faq_ids": [
+        "23d4a9437ef55557",
+        "1447c499aa769df1"
+      ],
+      "sample_questions": [
+        "如何找回支付密码？",
+        "为什么要进行实名认证？"
+      ]
+    },
+    {
+      "id": "account.modify_login_password",
+      "canonical": "修改登录密码",
+      "category": "账户管理",
+      "aliases": [
+        "修改登录密码",
+        "改登录密码",
+        "更换登录密码"
+      ],
+      "boost": 1.2,
+      "document_count": 1,
+      "sample_faq_ids": [
+        "7a9361eb2fd18e4c"
+      ],
+      "sample_questions": [
+        "如何修改登陆密码？"
+      ]
+    },
+    {
+      "id": "account.retrieve_login_password",
+      "canonical": "找回登录密码",
+      "category": "账户管理",
+      "aliases": [
+        "找回登录密码",
+        "忘记登录密码",
+        "登录密码忘了"
+      ],
+      "boost": 1.2,
+      "document_count": 1,
+      "sample_faq_ids": [
+        "1447c499aa769df1"
+      ],
+      "sample_questions": [
+        "为什么要进行实名认证？"
+      ]
+    }
+  ],
+  "source_file": "data/jd_faq_clean.jsonl",
+  "min_doc_count": 1
+}
